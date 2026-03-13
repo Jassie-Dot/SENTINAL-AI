@@ -1,0 +1,128 @@
+/* VIBRANIUM ARC REACTOR CORE */
+:root {
+    --core-metal-dark: #111;
+    --core-metal-light: #2a2a2a;
+    --core-blue: #00f3ff;
+    --core-glow: rgba(0, 243, 255, 0.6);
+    --vibranium-purple: rgba(138, 43, 226, 0.4);
+}
+
+#tesseract-container {
+    position: relative;
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    filter: drop-shadow(0 0 20px var(--core-glow));
+}
+
+/* Base Plate */
+.reactor-base {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: radial-gradient(circle at center, #222 30%, #000 70%);
+    border: 5px solid #333;
+    box-shadow: inset 0 0 30px #000;
+    z-index: 1;
+}
+
+/* Outer Ring (Rotating) */
+.reactor-ring-outer {
+    position: absolute;
+    width: 90%;
+    height: 90%;
+    border-radius: 50%;
+    border: 10px solid transparent;
+    border-top: 10px solid var(--core-blue);
+    border-bottom: 10px solid var(--core-blue);
+    animation: spinClockwise 10s linear infinite;
+    z-index: 2;
+    box-shadow: 0 0 15px var(--core-glow);
+}
+
+/* Inner Ring (Counter-Rotating with Detail) */
+.reactor-ring-inner {
+    position: absolute;
+    width: 70%;
+    height: 70%;
+    border-radius: 50%;
+    border: 2px solid #444;
+    background: transparent;
+    z-index: 3;
+    animation: spinCounter 15s linear infinite;
+}
+
+.reactor-ring-inner::after {
+    content: '';
+    position: absolute;
+    top: -5px;
+    left: 50%;
+    width: 10px;
+    height: 10px;
+    background: var(--core-blue);
+    border-radius: 50%;
+    box-shadow: 0 0 10px var(--core-blue);
+}
+
+/* The Triangle Core */
+.reactor-core-triangle {
+    position: absolute;
+    width: 50%;
+    height: 50%;
+    z-index: 10;
+    animation: pulse 3s ease-in-out infinite alternate;
+}
+
+/* SVG Styling within the core */
+.vibranium-path {
+    fill: none;
+    stroke: url(#metal-gradient);
+    stroke-width: 4;
+    filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.5));
+}
+
+.energy-path {
+    fill: none;
+    stroke: var(--core-blue);
+    stroke-width: 3;
+    stroke-linecap: round;
+    filter: drop-shadow(0 0 10px var(--core-blue));
+    animation: energyFlow 2s linear infinite;
+}
+
+/* Animations */
+@keyframes spinClockwise {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes spinCounter {
+    from {
+        transform: rotate(360deg);
+    }
+
+    to {
+        transform: rotate(0deg);
+    }
+}
+
+@keyframes pulse {
+    0% {
+        transform: scale(1);
+        opacity: 0.8;
+        filter: drop-shadow(0 0 10px var(--core-glow));
+    }
+
+    100% {
+        transform: scale(1.05);
+        opacity: 1;
+        filter: drop-shadow(0 0 25px var(--core-blue));
+    }
+}

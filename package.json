@@ -1,0 +1,103 @@
+{
+  "name": "sentinal-desktop",
+  "version": "4.0.0",
+  "description": "S.E.N.T.I.N.A.L. Mark IV - All-in-One AI Desktop Assistant",
+  "main": "electron-main.cjs",
+  "author": "Jassie",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "server": "node server.mjs",
+    "build": "electron-builder --win --x64",
+    "build:portable": "electron-builder --win portable --x64",
+    "build:dir": "electron-builder --dir",
+    "pack": "electron-builder --dir"
+  },
+  "dependencies": {
+    "axios": "^1.13.6",
+    "cheerio": "^1.2.0",
+    "console": "^0.7.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
+    "eslint": "^10.0.1",
+    "express": "^4.22.1",
+    "jarvis-ai": "^0.1.0",
+    "javis": "^0.1.2",
+    "moment": "^2.30.1",
+    "moment-timezone": "^0.6.0",
+    "natural": "^8.1.0",
+    "node-cron": "^4.2.1",
+    "node-fetch": "^3.3.2",
+    "node-nlp": "^5.0.0-alpha.5",
+    "nodemailer": "^8.0.1",
+    "open": "^11.0.0",
+    "redis": "^5.11.0",
+    "screenshot-desktop": "^1.15.3",
+    "socket.io": "^4.8.3",
+    "socket.io-client": "^4.8.3",
+    "spotify-web-api-node": "^5.0.2",
+    "systeminformation": "^5.31.1",
+    "uuid": "^13.0.0"
+  },
+  "devDependencies": {
+    "electron": "^40.6.0",
+    "electron-builder": "^24.9.1"
+  },
+  "build": {
+    "appId": "com.sentinal.desktop",
+    "productName": "SENTINAL",
+    "copyright": "Copyright © 2026 Jassie",
+    "directories": {
+      "output": "dist",
+      "buildResources": "assets"
+    },
+    "files": [
+      "**/*",
+      "!dist/**",
+      "!node_modules/.cache/**",
+      "!.git/**"
+    ],
+    "extraResources": [
+      {
+        "from": "plugins",
+        "to": "plugins",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "lib",
+        "to": "lib",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.ico",
+      "artifactName": "${productName}-${version}.${ext}",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "SENTINAL",
+      "runAfterFinish": true
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-Portable.${ext}"
+    }
+  }
+}

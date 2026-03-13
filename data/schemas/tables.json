@@ -1,0 +1,119 @@
+[
+  {
+    "name": "contact_index"
+  },
+  {
+    "name": "sqlite_sequence"
+  },
+  {
+    "name": "phonenumber"
+  },
+  {
+    "name": "fts_phonenumber"
+  },
+  {
+    "name": "fts_phonenumber_data"
+  },
+  {
+    "name": "fts_phonenumber_idx"
+  },
+  {
+    "name": "fts_phonenumber_docsize"
+  },
+  {
+    "name": "fts_phonenumber_config"
+  },
+  {
+    "name": "contact"
+  },
+  {
+    "name": "fts_contact"
+  },
+  {
+    "name": "fts_contact_data"
+  },
+  {
+    "name": "fts_contact_idx"
+  },
+  {
+    "name": "fts_contact_docsize"
+  },
+  {
+    "name": "fts_contact_config"
+  },
+  {
+    "name": "postaladdress"
+  },
+  {
+    "name": "fts_postaladdress"
+  },
+  {
+    "name": "fts_postaladdress_data"
+  },
+  {
+    "name": "fts_postaladdress_idx"
+  },
+  {
+    "name": "fts_postaladdress_docsize"
+  },
+  {
+    "name": "fts_postaladdress_config"
+  },
+  {
+    "name": "emailaddress"
+  },
+  {
+    "name": "fts_emailaddress"
+  },
+  {
+    "name": "fts_emailaddress_data"
+  },
+  {
+    "name": "fts_emailaddress_idx"
+  },
+  {
+    "name": "fts_emailaddress_docsize"
+  },
+  {
+    "name": "fts_emailaddress_config"
+  },
+  {
+    "name": "contactdate"
+  },
+  {
+    "name": "fts_contactdate"
+  },
+  {
+    "name": "fts_contactdate_data"
+  },
+  {
+    "name": "fts_contactdate_idx"
+  },
+  {
+    "name": "fts_contactdate_docsize"
+  },
+  {
+    "name": "fts_contactdate_config"
+  },
+  {
+    "name": "contacturl"
+  },
+  {
+    "name": "fts_contacturl"
+  },
+  {
+    "name": "fts_contacturl_data"
+  },
+  {
+    "name": "fts_contacturl_idx"
+  },
+  {
+    "name": "fts_contacturl_docsize"
+  },
+  {
+    "name": "fts_contacturl_config"
+  },
+  {
+    "name": "content_sequence"
+  }
+]

@@ -1,0 +1,170 @@
+/* BIOS SCREEN & BOOT SEQUENCE FIXES */
+#bios-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: #000;
+    z-index: 9999;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+    font-family: 'Share Tech Mono', monospace;
+    color: #0f0;
+    /* Retro Green Base */
+}
+
+.bios-container {
+    width: 90%;
+    height: 90%;
+    border: 2px solid #0f0;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 0 20px rgba(0, 255, 0, 0.2);
+    background: rgba(0, 20, 0, 0.9);
+    position: relative;
+}
+
+.bios-header {
+    border-bottom: 2px solid #0f0;
+    padding-bottom: 20px;
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.bios-title-block h1 {
+    font-size: 1.5rem;
+    margin: 0;
+    text-shadow: 0 0 5px #0f0;
+}
+
+.bios-title-block h2 {
+    font-size: 0.8rem;
+    opacity: 0.7;
+    margin: 5px 0;
+}
+
+.bios-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    /* Prevent container expansion */
+}
+
+.bios-hardware-check {
+    margin-bottom: 20px;
+    font-size: 0.9rem;
+    line-height: 1.4;
+}
+
+.check-row {
+    display: flex;
+    gap: 10px;
+}
+
+.white {
+    color: #fff;
+}
+
+.bios-divider {
+    height: 2px;
+    background: #0f0;
+    margin: 10px 0;
+    opacity: 0.5;
+}
+
+/* THE CRITICAL LOG AREA */
+.bios-log {
+    flex: 1;
+    overflow-y: auto;
+    /* Allow scrolling */
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    /* Items stack from top, but we auto-scroll */
+    font-size: 0.85rem;
+    padding-right: 10px;
+    scrollbar-width: thin;
+    scrollbar-color: #0f0 #000;
+}
+
+.log-line {
+    margin-bottom: 4px;
+    font-family: 'Consolas', monospace;
+}
+
+.log-info {
+    color: #00ff00;
+}
+
+.log-warn {
+    color: #ffaa00;
+}
+
+.log-error {
+    color: #ff0000;
+}
+
+.log-success {
+    color: #00ffff;
+}
+
+/* Effects */
+.glitch-text {
+    animation: glitch 0.2s infinite;
+}
+
+@keyframes glitch {
+    0% {
+        transform: translate(0, 0);
+    }
+
+    20% {
+        transform: translate(-2px, 2px);
+    }
+
+    40% {
+        transform: translate(-2px, -2px);
+    }
+
+    60% {
+        transform: translate(2px, 2px);
+    }
+
+    80% {
+        transform: translate(2px, -2px);
+    }
+
+    100% {
+        transform: translate(0, 0);
+    }
+}
+
+.flash-white {
+    position: absolute;
+    /* Using absolute inside body/fixed might be better */
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: white;
+    z-index: 10000;
+    animation: flashOut 2s forwards;
+    pointer-events: none;
+}
+
+@keyframes flashOut {
+    0% {
+        opacity: 1;
+    }
+
+    100% {
+        opacity: 0;
+    }
+}

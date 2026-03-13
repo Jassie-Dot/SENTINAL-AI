@@ -1,0 +1,58 @@
+[
+  {
+    "cid": 0,
+    "name": "phone_number_id",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 1
+  },
+  {
+    "cid": 1,
+    "name": "contact_id",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 2,
+    "name": "phone_number",
+    "type": "TEXT",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 3,
+    "name": "display_phone_number",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 4,
+    "name": "phone_number_type",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": "0",
+    "pk": 0
+  },
+  {
+    "cid": 5,
+    "name": "label",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 6,
+    "name": "checksum",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": "0",
+    "pk": 0
+  }
+]

@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SENTINAL Setup</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Rajdhani:wght@300;500;700&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #0a0a0a 100%);
+            color: #fff;
+            font-family: 'Rajdhani', sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .setup-container {
+            text-align: center;
+            max-width: 550px;
+            padding: 40px;
+        }
+
+        .logo {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 3rem;
+            color: #00f2ff;
+            text-shadow: 0 0 30px rgba(0, 242, 255, 0.5);
+            margin-bottom: 10px;
+            letter-spacing: 8px;
+        }
+
+        .subtitle {
+            font-size: 0.9rem;
+            color: rgba(255, 255, 255, 0.6);
+            letter-spacing: 3px;
+            margin-bottom: 40px;
+        }
+
+        .status-icon {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            background: rgba(0, 242, 255, 0.1);
+            border: 3px solid rgba(0, 242, 255, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 25px;
+            position: relative;
+            animation: pulse-ring 2s ease-in-out infinite;
+        }
+
+        .status-icon::before {
+            content: '';
+            position: absolute;
+            inset: -10px;
+            border-radius: 50%;
+            border: 2px solid rgba(0, 242, 255, 0.2);
+            animation: pulse-expand 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse-ring {
+
+            0%,
+            100% {
+                box-shadow: 0 0 20px rgba(0, 242, 255, 0.3);
+            }
+
+            50% {
+                box-shadow: 0 0 50px rgba(0, 242, 255, 0.5);
+            }
+        }
+
+        @keyframes pulse-expand {
+
+            0%,
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+
+            50% {
+                transform: scale(1.1);
+                opacity: 0.5;
+            }
+        }
+
+        .status-icon span {
+            font-size: 2.5rem;
+        }
+
+        .status-message {
+            font-size: 1.1rem;
+            color: #00f2ff;
+            margin-bottom: 15px;
+            min-height: 28px;
+            letter-spacing: 1px;
+        }
+
+        /* Step indicator */
+        .step-indicator {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 25px;
+        }
+
+        .step {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: rgba(0, 242, 255, 0.2);
+            transition: all 0.3s ease;
+        }
+
+        .step.active {
+            background: #00f2ff;
+            box-shadow: 0 0 10px rgba(0, 242, 255, 0.5);
+        }
+
+        .step.complete {
+            background: #00ff88;
+        }
+
+        .progress-container {
+            width: 100%;
+            height: 8px;
+            background: rgba(0, 242, 255, 0.1);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 12px;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #00f2ff, #00aaff);
+            box-shadow: 0 0 20px rgba(0, 242, 255, 0.5);
+            border-radius: 4px;
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+
+        .progress-bar.indeterminate {
+            width: 30%;
+            animation: indeterminate 1.5s ease-in-out infinite;
+        }
+
+        @keyframes indeterminate {
+            0% {
+                transform: translateX(-100%);
+            }
+
+            100% {
+                transform: translateX(400%);
+            }
+        }
+
+        .progress-text {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.75rem;
+            color: rgba(255, 255, 255, 0.5);
+            letter-spacing: 2px;
+        }
+
+        .detail-text {
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.4);
+            margin-top: 8px;
+            min-height: 20px;
+        }
+
+        .error-message {
+            color: #ff4444;
+            margin-top: 15px;
+            font-size: 0.85rem;
+            padding: 12px;
+            background: rgba(255, 68, 68, 0.1);
+            border-radius: 5px;
+            border: 1px solid rgba(255, 68, 68, 0.3);
+        }
+
+        .button-group {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+
+        .btn {
+            padding: 12px 28px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.75rem;
+            letter-spacing: 2px;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: all 0.3s ease;
+            display: none;
+        }
+
+        .btn.visible {
+            display: inline-block;
+        }
+
+        .retry-btn {
+            background: rgba(0, 242, 255, 0.1);
+            border: 2px solid #00f2ff;
+            color: #00f2ff;
+        }
+
+        .retry-btn:hover {
+            background: rgba(0, 242, 255, 0.2);
+            box-shadow: 0 0 30px rgba(0, 242, 255, 0.3);
+        }
+
+        .skip-btn {
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .skip-btn:hover {
+            border-color: rgba(255, 255, 255, 0.5);
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .cloud-notice {
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(255, 204, 0, 0.1);
+            border: 1px solid rgba(255, 204, 0, 0.3);
+            border-radius: 5px;
+            font-size: 0.85rem;
+            color: rgba(255, 204, 0, 0.9);
+            display: none;
+        }
+
+        .cloud-notice.visible {
+            display: block;
+        }
+
+        /* Complete state */
+        .complete .status-icon {
+            border-color: #00ff88;
+            background: rgba(0, 255, 136, 0.1);
+            animation: none;
+        }
+
+        .complete .status-icon::before {
+            border-color: rgba(0, 255, 136, 0.2);
+        }
+
+        .complete .status-message {
+            color: #00ff88;
+        }
+
+        /* Error state */
+        .error .status-icon {
+            border-color: #ff4444;
+            background: rgba(255, 68, 68, 0.1);
+            animation: none;
+        }
+
+        .error .status-icon::before {
+            border-color: rgba(255, 68, 68, 0.2);
+            animation: none;
+        }
+
+        /* Help link */
+        .help-link {
+            margin-top: 30px;
+            font-size: 0.75rem;
+            color: rgba(255, 255, 255, 0.4);
+        }
+
+        .help-link a {
+            color: rgba(0, 242, 255, 0.7);
+            text-decoration: none;
+        }
+
+        .help-link a:hover {
+            color: #00f2ff;
+            text-decoration: underline;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="setup-container" id="container">
+        <h1 class="logo">S.E.N.T.I.N.E.L.</h1>
+        <p class="subtitle">FIRST TIME SETUP</p>
+
+        <div class="step-indicator">
+            <div class="step" id="step1"></div>
+            <div class="step" id="step2"></div>
+            <div class="step" id="step3"></div>
+            <div class="step" id="step4"></div>
+        </div>
+
+        <div class="status-icon">
+            <span id="statusIcon">⚡</span>
+        </div>
+
+        <p class="status-message" id="statusMessage">Initializing...</p>
+
+        <div class="progress-container">
+            <div class="progress-bar indeterminate" id="progressBar"></div>
+        </div>
+
+        <p class="progress-text" id="progressText">PLEASE WAIT</p>
+        <p class="detail-text" id="detailText"></p>
+
+        <div class="button-group">
+            <button class="btn retry-btn" id="retryBtn" onclick="retrySetup()">RETRY SETUP</button>
+            <button class="btn skip-btn" id="skipBtn" onclick="skipSetup()">USE CLOUD AI</button>
+        </div>
+
+        <div class="cloud-notice" id="cloudNotice">
+            ⚠️ SENTINAL will use cloud AI as a fallback. This requires an internet connection and may have usage limits.
+        </div>
+
+        <div class="help-link" id="helpLink" style="display: none;">
+            Need help? <a href="https://ollama.com/download" target="_blank">Download Ollama manually</a>
+        </div>
+    </div>
+
+    <script>
+        const statusIcon = document.getElementById('statusIcon');
+        const statusMessage = document.getElementById('statusMessage');
+        const progressBar = document.getElementById('progressBar');
+        const progressText = document.getElementById('progressText');
+        const detailText = document.getElementById('detailText');
+        const container = document.getElementById('container');
+        const retryBtn = document.getElementById('retryBtn');
+        const skipBtn = document.getElementById('skipBtn');
+        const cloudNotice = document.getElementById('cloudNotice');
+        const helpLink = document.getElementById('helpLink');
+
+        // Step elements
+        const steps = [
+            document.getElementById('step1'),
+            document.getElementById('step2'),
+            document.getElementById('step3'),
+            document.getElementById('step4')
+        ];
+
+        // Status icons mapping
+        const icons = {
+            'checking': '🔍',
+            'downloading': '⬇️',
+            'installing': '⚙️',
+            'starting': '🚀',
+            'checking-model': '🤖',
+            'pulling': '📥',
+            'verifying': '✅',
+            'complete': '✨',
+            'error': '❌'
+        };
+
+        // Status to step mapping
+        const statusToStep = {
+            'checking': 0,
+            'downloading': 1,
+            'installing': 1,
+            'starting': 2,
+            'checking-model': 2,
+            'pulling': 3,
+            'verifying': 3,
+            'complete': 4
+        };
+
+        function updateSteps(status) {
+            const currentStep = statusToStep[status] ?? 0;
+
+            steps.forEach((step, index) => {
+                step.classList.remove('active', 'complete');
+                if (index < currentStep) {
+                    step.classList.add('complete');
+                } else if (index === currentStep) {
+                    step.classList.add('active');
+                }
+            });
+        }
+
+        function updateStatus(status, progress, message) {
+            statusIcon.textContent = icons[status] || '⚡';
+            statusMessage.textContent = message;
+
+            // Update step indicator
+            updateSteps(status);
+
+            if (progress > 0) {
+                progressBar.classList.remove('indeterminate');
+                progressBar.style.width = `${progress}%`;
+                progressText.textContent = `${progress}%`;
+            } else {
+                progressBar.classList.add('indeterminate');
+                progressText.textContent = 'PLEASE WAIT';
+            }
+
+            // Update detail text based on status
+            switch (status) {
+                case 'downloading':
+                    detailText.textContent = 'Downloading Ollama AI runtime...';
+                    break;
+                case 'installing':
+                    detailText.textContent = 'Installing on your system...';
+                    break;
+                case 'pulling':
+                    detailText.textContent = 'This may take several minutes depending on your connection';
+                    break;
+                case 'verifying':
+                    detailText.textContent = 'Almost there...';
+                    break;
+                case 'complete':
+                    detailText.textContent = '';
+                    break;
+                default:
+                    detailText.textContent = '';
+            }
+
+            if (status === 'complete') {
+                container.classList.remove('error');
+                container.classList.add('complete');
+                progressText.textContent = 'READY';
+                steps.forEach(step => step.classList.add('complete'));
+            } else if (status === 'error') {
+                container.classList.remove('complete');
+                container.classList.add('error');
+                retryBtn.classList.add('visible');
+                skipBtn.classList.add('visible');
+                helpLink.style.display = 'block';
+                progressText.textContent = 'FAILED';
+                detailText.textContent = 'You can retry or use cloud AI instead';
+            } else {
+                container.classList.remove('complete', 'error');
+                retryBtn.classList.remove('visible');
+                skipBtn.classList.remove('visible');
+                helpLink.style.display = 'none';
+            }
+        }
+
+        function retrySetup() {
+            container.classList.remove('error');
+            retryBtn.classList.remove('visible');
+            skipBtn.classList.remove('visible');
+            cloudNotice.classList.remove('visible');
+            helpLink.style.display = 'none';
+
+            // Reset steps
+            steps.forEach(step => step.classList.remove('active', 'complete'));
+
+            if (window.electronAPI) {
+                window.electronAPI.retrySetup();
+            }
+        }
+
+        function skipSetup() {
+            cloudNotice.classList.add('visible');
+            statusMessage.textContent = 'Switching to cloud AI...';
+            retryBtn.classList.remove('visible');
+            skipBtn.classList.remove('visible');
+
+            if (window.electronAPI) {
+                window.electronAPI.skipSetup();
+            }
+        }
+
+        // Listen for status updates from main process
+        if (window.electronAPI) {
+            window.electronAPI.onSetupStatus((status, progress, message) => {
+                updateStatus(status, progress, message);
+            });
+        }
+
+        // Start initial animation
+        updateStatus('checking', 0, 'Checking system requirements...');
+    </script>
+</body>
+
+</html>

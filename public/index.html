@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <title>S.E.N.T.I.N.A.L. Mark IV — Desktop</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0a0a0a" />
+  <meta name="description" content="S.E.N.T.I.N.A.L. Mark IV — Intelligent AI Desktop Assistant by Jassie Industries" />
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="bios.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+</head>
+
+<body data-mode="chat">
+
+  <!-- ADVANCED RETRO BIOS STARTUP -->
+  <div id="bios-screen">
+    <div class="crt-overlay"></div>
+    <div class="scanlines"></div>
+    <div class="glow-overlay"></div>
+    <div class="bios-container">
+      <div class="bios-header">
+        <div class="energy-star">
+          <svg viewBox="0 0 100 100" class="energy-star-logo">
+            <path d="M50 5 L63 35 L95 40 L72 62 L78 95 L50 80 L22 95 L28 62 L5 40 L37 35 Z" fill="none"
+              stroke="currentColor" stroke-width="2" />
+            <path d="M50 15 L60 38 L85 42 L68 60 L72 85 L50 72 L28 85 L32 60 L15 42 L40 38 Z" fill="currentColor" />
+            <text x="50" y="8" text-anchor="middle" font-size="8" fill="currentColor">ENERGY</text>
+            <text x="50" y="98" text-anchor="middle" font-size="8" fill="currentColor">System</text>
+          </svg>
+        </div>
+        <div class="bios-title-block">
+          <h1>SENTINAL SYSTEMS (R) QUANTUM BIOS v4.2.0</h1>
+          <h2>COPYRIGHT (C) 2026 SENTINAL AI SYSTEMS.</h2>
+          <p>ASSEMBLY DATE: <span id="bios-date">03/07/2026</span></p>
+        </div>
+        <div class="bios-logo-right">
+          <div class="jassie-logo">JASSIE IND.</div>
+        </div>
+      </div>
+      <div class="bios-main">
+        <div class="bios-hardware-check">
+          <div class="check-row">Main Processor: <span class="white">QUANTUM NEURAL CORE i9 [256 CORES]</span></div>
+          <div class="check-row">Clock Speed: <span class="white">10.5 GHz (STABLE)</span></div>
+          <div class="check-row">Memory Test: <span id="memCounter">0</span> KB OK</div>
+          <div class="check-row">Primary Master: <span class="white">QUANTUM_CORE_DRIVE_01 (1024 PB)</span></div>
+          <div class="check-row">Primary Slave: <span class="white">SECURE_UPLINK_NODE_ALPHA</span></div>
+        </div>
+        <div class="bios-divider"></div>
+        <div id="bios-log" class="bios-log"></div>
+      </div>
+      <div class="bios-footer">
+        <div class="footer-line">Press <span class="key">DEL</span> to enter SETUP</div>
+        <div class="footer-line">Press <span class="key">F12</span> for NETWORK BOOT</div>
+        <div class="footer-line blink">_</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ELECTRON TITLEBAR -->
+  <div class="titlebar" id="titlebar">
+    <div class="titlebar-drag">
+      <span class="titlebar-icon">⚡</span>
+      <span class="titlebar-title">S.E.N.T.I.N.A.L. MARK IV</span>
+    </div>
+    <div class="titlebar-controls">
+      <button class="titlebar-btn minimize" id="minimizeBtn" title="Minimize">─</button>
+      <button class="titlebar-btn maximize" id="maximizeBtn" title="Maximize">□</button>
+      <button class="titlebar-btn close" id="closeBtn" title="Close">✕</button>
+    </div>
+  </div>
+
+  <!-- HUD OVERLAYS -->
+  <div class="hud-overlay">
+    <div class="grid-background"></div>
+    <div class="scanlines"></div>
+    <div class="vignette"></div>
+  </div>
+
+  <!-- SVG GLOW FILTERS -->
+  <svg style="position: absolute; width: 0; height: 0;" aria-hidden="true">
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+    <filter id="hologram">
+      <feColorMatrix type="matrix" values="0 0 0 0 1  0 0 0 0 0.8  0 0 0 0 0  0 0 0 1 0" />
+      <feGaussianBlur stdDeviation="0.5" />
+    </filter>
+  </svg>
+
+  <!-- MODE TOGGLE HEADER -->
+  <header class="mode-header">
+    <div class="mode-toggle">
+      <button class="mode-btn" id="voice-toggle" title="Voice Mode">
+        <span class="mode-icon">🎤</span>
+        <span class="mode-label">VOICE</span>
+      </button>
+      <div class="mode-divider"></div>
+      <button class="mode-btn active" id="chatModeBtn" title="Chat Mode">
+        <span class="mode-icon">💬</span>
+        <span class="mode-label">CHAT</span>
+      </button>
+      <div class="mode-divider"></div>
+      <button class="mode-btn" id="hackerModeBtn" title="Hacker Dashboard">
+        <span class="mode-icon">💀</span>
+        <span class="mode-label">HACK</span>
+      </button>
+      <div class="mode-divider"></div>
+      <button class="mode-btn repair-btn" id="repairModeBtn" title="System Repair">
+        <span class="mode-icon">🔧</span>
+        <span class="mode-label">REPAIR</span>
+      </button>
+    </div>
+
+    <div class="header-status">
+      <span class="sentinal-title">S.E.N.T.I.N.A.L.</span>
+      <span class="status-badge" id="modeStatus">CHAT MODE</span>
+      <div class="consciousness-indicator" id="consciousnessIndicator" title="Neural State">
+        <span class="brain-pulse">🧠</span>
+        <span class="mood-label" id="sentinalMood">IDLE</span>
+      </div>
+      <!-- FEELINGS BADGE -->
+      <div class="emotion-badge" id="emotionBadge" title="SENTINAL Emotional State">
+        <span class="emotion-icon" id="emotionIcon">💭</span>
+        <span class="emotion-label" id="emotionLabel">NEUTRAL</span>
+        <div class="emotion-vad-mini">
+          <div class="vad-bar" id="vadValence" title="Valence"></div>
+          <div class="vad-bar" id="vadArousal" title="Arousal"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="header-time">
+      <div id="hudClock">10:51:53</div>
+      <div id="hudDate">MAR. 07, 2026</div>
+    </div>
+  </header>
+
+  <!-- MAIN LAYOUT -->
+  <div class="sentinal-container" role="application">
+
+    <!-- LEFT PANEL: ARC REACTOR + TELEMETRY -->
+    <section class="left-panel">
+      <div class="telemetry-top">
+        <div class="telemetry-item">
+          <span class="label">CORE_TEMP</span>
+          <div class="bar-container">
+            <div class="bar" id="tempBar" style="width: 42%;"></div>
+          </div>
+          <span class="value">42°C</span>
+        </div>
+        <div class="telemetry-item">
+          <span class="label">POWER_OUTPUT</span>
+          <div class="bar-container">
+            <div class="bar" id="powerBar" style="width: 89%;"></div>
+          </div>
+          <span class="value">8.9 GW</span>
+        </div>
+      </div>
+
+      <div class="reactor-assembly">
+        <div class="orb-wrapper" id="reactorParallax">
+          <!-- 3D Arc Reactor — TWO.js renders here via script.js -->
+          <div id="tesseract-container"></div>
+        </div>
+      </div>
+
+      <div class="status-box">
+        <div class="status-indicator">
+          <div class="dot" id="statusDot"></div>
+          <span id="statusText">IDLE</span>
+        </div>
+        <div class="system-id">MARK_IV_v.4.0.0</div>
+      </div>
+
+      <!-- Voice Mode Controls -->
+      <div class="voice-controls" id="voiceControls">
+        <div class="voice-status" id="voiceStatus">
+          <span class="pulse-ring"></span>
+          <span class="voice-label">LISTENING</span>
+        </div>
+        <button class="terminate-btn voice-terminate" id="voiceTerminate" title="Terminate">
+          <span>⏹</span> TERMINATE
+        </button>
+      </div>
+
+      <!-- EMOTION PANEL (Real-time Feelings Display) -->
+      <div class="emotion-panel" id="emotionPanel">
+        <div class="emotion-panel-header">EMOTIONAL STATE</div>
+        <div class="emotion-state-display" id="emotionStateDisplay">
+          <div class="emotion-name" id="emotionName">NEUTRAL</div>
+          <div class="emotion-bars">
+            <div class="erow">
+              <span>V</span>
+              <div class="ebar-wrap">
+                <div class="ebar ebar-v" id="barValence" style="width:50%"></div>
+              </div>
+            </div>
+            <div class="erow">
+              <span>A</span>
+              <div class="ebar-wrap">
+                <div class="ebar ebar-a" id="barArousal" style="width:50%"></div>
+              </div>
+            </div>
+            <div class="erow">
+              <span>D</span>
+              <div class="ebar-wrap">
+                <div class="ebar ebar-d" id="barDominance" style="width:50%"></div>
+              </div>
+            </div>
+          </div>
+          <div class="user-emotion-label">USER: <span id="userEmotionLabel">READING...</span></div>
+        </div>
+        <div class="emotion-history" id="emotionHistory">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+      <div class="telemetry-bottom">
+        <div class="data-block">
+          <span class="title">SAT_LINK</span>
+          <span class="val">ESTABLISHED</span>
+        </div>
+        <div class="data-block">
+          <span class="title">GEO_LOC</span>
+          <span class="val" id="weatherLocation">LUDHIANA, IN</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- RIGHT PANEL: COMMAND CENTER -->
+    <section class="right-panel" id="chatPanel">
+      <div class="panel-header">
+        <h2>COMMAND INTERFACE</h2>
+        <div class="divider"></div>
+      </div>
+
+      <main id="messages" class="scroll-vignette"></main>
+
+
+      <div id="typing" class="typing-indicator hidden">
+        <div class="dot"></div>
+        <div class="dot"></div>
+        <div class="dot"></div>
+      </div>
+
+      <footer class="input-area">
+        <div class="file-drop" id="fileArea">
+          <input type="file" id="fileInput" multiple hidden />
+          <button class="icon-btn" id="attach" title="Attach Data">📎</button>
+        </div>
+        <input type="text" id="input" placeholder="AWAITING COMMAND..." autocomplete="off" />
+        <div class="action-btns">
+          <button class="icon-btn voice-toggle active" id="voiceToggle" title="Voice Output: ON">🔊</button>
+          <button class="terminate-btn" id="chatTerminate" title="Terminate Response">⏹</button>
+          <button class="icon-btn" id="mic" title="Voice Input">🎤</button>
+          <button class="icon-btn prime" id="send" title="Transmit">➤</button>
+        </div>
+      </footer>
+    </section>
+
+    <!-- VOICE MODE PANEL — hidden in chat mode, shown in voice mode -->
+    <section class="voice-panel" id="voicePanel" aria-hidden="true">
+
+      <!-- Waveform visualizer -->
+      <div class="waveform-section">
+        <div class="waveform-label">AUDIO INTAKE · VOICE WAVEFORM</div>
+        <div class="waveform-wrap">
+          <canvas id="waveformCanvas" class="waveform-canvas"></canvas>
+          <div class="waveform-rings">
+            <div class="vring vring-1"></div>
+            <div class="vring vring-2"></div>
+            <div class="vring vring-3"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live status bar -->
+      <div class="voice-live-status" id="voiceLiveStatus">
+        <span class="vls-dot" id="vlsDot"></span>
+        <span class="vls-text" id="vlsText">AWAITING ACTIVATION</span>
+        <span class="vls-divider">|</span>
+        <span class="vls-mode" id="vlsMode">STAND BY</span>
+      </div>
+
+      <!-- Live transcript — what user says -->
+      <div class="voice-transcript-section">
+        <div class="vts-header">
+          <span class="vts-icon">🎙</span>
+          <span class="vts-label">LIVE TRANSCRIPT</span>
+          <span class="vts-confidence" id="transcriptConfidence"></span>
+        </div>
+        <div class="voice-transcript-text" id="voiceTranscriptText">
+          <span class="transcript-placeholder">Speak to interact with SENTINAL...</span>
+        </div>
+      </div>
+
+      <!-- SENTINAL response display —  last spoken response -->
+      <div class="voice-response-section">
+        <div class="vrs-header">
+          <span class="vrs-icon">⚡</span>
+          <span class="vrs-label">S.E.N.T.I.N.A.L. RESPONSE</span>
+        </div>
+        <div class="voice-response-text" id="voiceResponseText">
+          <span class="response-placeholder">Awaiting your command, Sir.</span>
+        </div>
+      </div>
+
+      <!-- Footer metrics -->
+      <div class="voice-metrics-strip">
+        <div class="vmetric">
+          <span class="vm-label">LATENCY</span>
+          <span class="vm-val" id="vmLatency">— ms</span>
+        </div>
+        <div class="vmetric">
+          <span class="vm-label">CONFIDENCE</span>
+          <span class="vm-val" id="vmConfidence">—%</span>
+        </div>
+        <div class="vmetric">
+          <span class="vm-label">TOKENS</span>
+          <span class="vm-val" id="vmTokens">0</span>
+        </div>
+        <div class="vmetric">
+          <span class="vm-label">SESSION</span>
+          <span class="vm-val" id="vmSession">00:00</span>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- CAMERA OVERLAY -->
+  <div id="cameraOverlay" class="hidden">
+    <div class="camera-frame">
+      <video id="cameraVideo" class="camera-video" autoplay playsinline></video>
+      <canvas id="cameraCanvas" class="hidden"></canvas>
+      <div id="cameraCountdown" class="camera-countdown hidden">3</div>
+      <div class="camera-reticle"></div>
+      <div class="camera-scan-bar"></div>
+    </div>
+    <div class="camera-controls">
+      <button class="camera-btn" id="captureBtn">CAPTURE</button>
+      <button class="camera-btn" id="closeCameraBtn">CLOSE</button>
+    </div>
+  </div>
+
+
+  <!-- THOUGHT BUBBLE OVERLAY -->
+  <div id="thoughtBubble" class="thought-bubble" aria-live="polite">
+    <div class="thought-bubble-header">
+      <span class="thought-brain-icon">🧠</span>
+      <span class="thought-label">SENTINAL IS THINKING</span>
+      <button class="thought-dismiss" id="dismissThought" aria-label="Dismiss">✕</button>
+    </div>
+    <div class="thought-bubble-text" id="thoughtBubbleText"></div>
+    <div class="thought-bubble-meta" id="thoughtBubbleMeta"></div>
+    <div class="thought-bubble-progress"></div>
+  </div>
+
+  <!-- EVOLUTION TOAST -->
+  <div id="evolutionToast" class="evolution-toast hidden">
+    <span class="evolution-icon">⚡</span>
+    <div class="evolution-toast-content">
+      <div class="evolution-toast-title">SENTINAL EVOLVED</div>
+      <div class="evolution-toast-msg" id="evolutionMsg">New capability acquired</div>
+    </div>
+  </div>
+
+  <!-- HIDDEN LIVE REGION -->
+  <div id="sentinalLive" aria-live="polite" class="sr-only"></div>
+
+  <!-- MAIN SCRIPTS -->
+  <script type="module" src="script.js" defer></script>
+  <script src="core-particles.js" defer></script>
+
+  <!-- INLINE SOCKET HANDLERS (Thought Bubble, Evolution, Emotion) -->
+  <script>
+    (function () {
+      let thoughtTimer = null;
+
+      function showThought(thought) {
+        const bubble = document.getElementById('thoughtBubble');
+        const textEl = document.getElementById('thoughtBubbleText');
+        const metaEl = document.getElementById('thoughtBubbleMeta');
+        const progressEl = bubble.querySelector('.thought-bubble-progress');
+        const brainIcon = document.getElementById('consciousnessIndicator')?.querySelector('.brain-pulse');
+
+        if (!bubble || !textEl) return;
+
+        textEl.textContent = '"' + thought.text + '"';
+        metaEl.textContent = `${thought.category || 'thought'} · ${new Date(thought.timestamp).toLocaleTimeString()}`;
+
+        progressEl.style.animation = 'none';
+        progressEl.offsetHeight;
+        progressEl.style.animation = 'progressDrain 30s linear forwards';
+
+        bubble.classList.add('visible');
+
+        if (brainIcon) {
+          brainIcon.classList.add('thinking');
+          setTimeout(() => brainIcon.classList.remove('thinking'), 5000);
+        }
+
+        clearTimeout(thoughtTimer);
+        thoughtTimer = setTimeout(() => bubble.classList.remove('visible'), 30000);
+      }
+
+      function showEvolution(data) {
+        const toast = document.getElementById('evolutionToast');
+        const msg = document.getElementById('evolutionMsg');
+        if (!toast) return;
+        msg.textContent = data.capability ? `New plugin: ${data.capability}` : 'Capability upgraded';
+        toast.classList.remove('hidden');
+        setTimeout(() => toast.classList.add('hidden'), 6000);
+      }
+
+      function updateEmotionDisplay(state) {
+        // Header badge
+        const badge = document.getElementById('emotionBadge');
+        const icon = document.getElementById('emotionIcon');
+        const label = document.getElementById('emotionLabel');
+        const moodEl = document.getElementById('sentinalMood');
+
+        const EMOTION_ICONS = {
+          neutral: '💭', happy: '😊', curious: '🔍', excited: '⚡', focused: '🎯',
+          analytical: '📊', empathetic: '💙', concerned: '⚠️', annoyed: '😤',
+          melancholic: '🌧️', playful: '🎮', proud: '🏆', protective: '🛡️', serene: '🌊'
+        };
+
+        const emotionName = state.emotion || 'neutral';
+        const color = state.color || '#00efff';
+
+        if (icon) icon.textContent = EMOTION_ICONS[emotionName] || '💭';
+        if (label) label.textContent = emotionName.toUpperCase();
+        if (badge) badge.style.setProperty('--emotion-color', color);
+        if (moodEl) moodEl.textContent = emotionName.toUpperCase();
+
+        // Left panel
+        const eName = document.getElementById('emotionName');
+        const barV = document.getElementById('barValence');
+        const barA = document.getElementById('barArousal');
+        const barD = document.getElementById('barDominance');
+        const userLabel = document.getElementById('userEmotionLabel');
+
+        if (eName) { eName.textContent = emotionName.toUpperCase(); eName.style.color = color; }
+        if (barV) barV.style.width = `${((state.valence || 0) + 1) * 50}%`;
+        if (barA) barA.style.width = `${((state.arousal || 0) + 1) * 50}%`;
+        if (barD) barD.style.width = `${(state.dominance || 0.5) * 100}%`;
+        if (userLabel) userLabel.textContent = (state.userRecentEmotion || 'neutral').toUpperCase();
+
+        // Color-theme the body
+        document.documentElement.style.setProperty('--sentinal-emotion-color', color);
+
+        // History
+        const histEl = document.getElementById('emotionHistory');
+        if (histEl && state.trajectory?.length) {
+          histEl.innerHTML = state.trajectory.slice(-4).reverse().map(t => {
+            const ec = t.sentinalEmotion || 'neutral';
+            return `<div class="ehistory-item"><span>${ec}</span></div>`;
+          }).join('');
+        }
+      }
+
+      document.getElementById('dismissThought')?.addEventListener('click', () => {
+        document.getElementById('thoughtBubble')?.classList.remove('visible');
+        clearTimeout(thoughtTimer);
+      });
+
+      window.addEventListener('sentinal-thought', (e) => showThought(e.detail));
+      window.addEventListener('sentinal-evolution', (e) => showEvolution(e.detail));
+      window.addEventListener('sentinal-evolved', (e) => showEvolution(e.detail));
+
+      // Hook into socket.io once ready
+      const socketCheckInterval = setInterval(() => {
+        if (window.socket) {
+          clearInterval(socketCheckInterval);
+
+          window.socket.on('sentinal:thought', (data) => {
+            showThought(data);
+            const moodEl = document.getElementById('sentinalMood');
+            if (moodEl && data.mood) moodEl.textContent = data.mood;
+          });
+
+          window.socket.on('sentinal:evolved', showEvolution);
+          window.socket.on('sentinal:evolving', (data) => {
+            const brainIcon = document.getElementById('consciousnessIndicator')?.querySelector('.brain-pulse');
+            if (brainIcon) brainIcon.classList.add('thinking');
+            const toast = document.getElementById('evolutionToast');
+            const msg = document.getElementById('evolutionMsg');
+            if (toast && msg) {
+              msg.textContent = `Evolving: ${data.target}...`;
+              toast.style.borderColor = 'rgba(0, 239, 255, 0.5)';
+              toast.style.color = '#00efff';
+              toast.classList.remove('hidden');
+            }
+          });
+
+          // FEELINGS: Real-time emotion updates
+          window.socket.on('sentinal:emotion', (state) => {
+            updateEmotionDisplay(state);
+          });
+        }
+      }, 300);
+    })();
+  </script>
+
+  <!-- ELECTRON TITLEBAR CONTROLS -->
+  <script>
+    if (window.electronAPI) {
+      document.body.classList.add('electron-app');
+      document.getElementById('minimizeBtn')?.addEventListener('click', () => window.electronAPI.minimize());
+      document.getElementById('maximizeBtn')?.addEventListener('click', () => window.electronAPI.maximize());
+      document.getElementById('closeBtn')?.addEventListener('click', () => window.electronAPI.close());
+      console.log('[SENTINAL] Running in Electron Desktop Mode');
+    } else {
+      const titlebar = document.getElementById('titlebar');
+      if (titlebar) titlebar.style.display = 'none';
+      console.log('[SENTINAL] Running in Browser Mode');
+    }
+  </script>
+
+</body>
+
+</html>

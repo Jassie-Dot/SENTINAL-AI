@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SENTINAL SYSTEM DIAGNOSTICS</title>
+    <link rel="stylesheet" href="repair-popup.css">
+    <style>
+        body {
+            background: #050505;
+            color: #ffaa00;
+            margin: 0;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #repairOverlay {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            display: flex !important;
+            /* Force show */
+            z-index: 1;
+        }
+
+        .repair-container {
+            width: 100%;
+            height: 100%;
+            border: none;
+            box-shadow: none;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- REPAIR / DIAGNOSTIC OVERLAY STRUCTURE -->
+    <div id="repairOverlay">
+        <div class="repair-container">
+            <div class="repair-header">
+                <div class="warning-stripe"></div>
+                <h1>SYSTEM DIAGNOSTICS & REPAIR</h1>
+                <div class="warning-stripe"></div>
+                <button id="closeRepairBtn" class="close-btn">DEPLOY (CLOSE)</button>
+            </div>
+
+            <div class="repair-grid">
+                <!-- Visualizer Area -->
+                <div class="repair-panel visualizer-panel">
+                    <div class="panel-title">CORE INTEGRITY VISUALIZER</div>
+                    <div id="repairVisualizer" class="visualizer-canvas"></div>
+                    <div class="integrity-stat">
+                        <span class="label">SYSTEM HEALTH:</span>
+                        <span class="value" id="integrityValue">100%</span>
+                    </div>
+                </div>
+
+                <!-- Terminal Output -->
+                <div class="repair-panel terminal-panel">
+                    <div class="panel-title">DIAGNOSTIC LOG</div>
+                    <div id="repairLog" class="repair-log">
+                        <div class="log-line">Connected to Mainframe...</div>
+                    </div>
+                </div>
+
+                <!-- Controls -->
+                <div class="repair-panel control-panel">
+                    <div class="panel-title">OPERATIONS</div>
+                    <div class="repair-controls">
+                        <button id="btnScan" class="repair-action-btn">
+                            <span class="icon">🔍</span> FULL SCAN
+                        </button>
+                        <button id="btnDiagnose" class="repair-action-btn" disabled>
+                            <span class="icon">🩺</span> DIAGNOSE
+                        </button>
+                        <button id="btnDeepClean" class="repair-action-btn warning">
+                            <span class="icon">🧹</span> DEEP CLEAN
+                        </button>
+                    </div>
+                    <div class="repair-input-area">
+                        <input type="text" id="repairInput" placeholder="Describe issue manually..." />
+                        <button id="repairSubmit">SUBMIT</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="scan-grid-overlay"></div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script type="module" src="repair-client.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,150 @@
+[
+  {
+    "id": "1770210853377",
+    "text": "now will you remind me in 1 minute to drink water",
+    "time": "2026-02-04T14:14:13.377Z",
+    "createdAt": "2026-02-04T13:14:13.377Z",
+    "status": "active"
+  },
+  {
+    "id": "1770370367376",
+    "text": "lets try",
+    "time": "2026-02-06T10:32:47.374Z",
+    "createdAt": "2026-02-06T09:32:47.376Z",
+    "status": "active"
+  },
+  {
+    "id": "1770370378539",
+    "text": "cancel reminders",
+    "time": "2026-02-06T10:32:58.539Z",
+    "createdAt": "2026-02-06T09:32:58.539Z",
+    "status": "active"
+  },
+  {
+    "id": "1770370386788",
+    "text": "cancel reminders jarvis",
+    "time": "2026-02-06T10:33:06.788Z",
+    "createdAt": "2026-02-06T09:33:06.789Z",
+    "status": "active"
+  },
+  {
+    "id": "1770370420837",
+    "text": "debug the things, make the code corrections, you cant cancel reminders, and probllem in setting reminders",
+    "time": "2026-02-06T10:33:40.837Z",
+    "createdAt": "2026-02-06T09:33:40.837Z",
+    "status": "active"
+  },
+  {
+    "id": "1770443553612",
+    "text": "set your code",
+    "time": "2026-02-07T06:52:33.612Z",
+    "createdAt": "2026-02-07T05:52:33.612Z",
+    "status": "active"
+  },
+  {
+    "id": "1770454007089",
+    "text": "Can you plan meetings?",
+    "time": "2026-02-07T09:46:47.087Z",
+    "createdAt": "2026-02-07T08:46:47.089Z",
+    "status": "completed",
+    "triggeredAt": "2026-02-07T09:46:00.022Z"
+  },
+  {
+    "id": "1770454020357",
+    "text": "Reminder set for 2nd, 2026. Three, 16 and 47 seconds. PM Sir, I'll notify you. Can you plan meetings?",
+    "time": "2026-02-07T09:47:00.357Z",
+    "createdAt": "2026-02-07T08:47:00.357Z",
+    "status": "completed",
+    "triggeredAt": "2026-02-07T09:47:00.053Z"
+  },
+  {
+    "id": "1770454026913",
+    "text": "Reminder set for July 2nd, 2026, 3:17.",
+    "time": "2026-02-07T09:47:06.913Z",
+    "createdAt": "2026-02-07T08:47:06.913Z",
+    "status": "completed",
+    "triggeredAt": "2026-02-07T09:47:00.017Z"
+  },
+  {
+    "id": "1770454033411",
+    "text": "Reminder set for July 2nd, 2026, 3:17.",
+    "time": "2026-02-07T09:47:13.411Z",
+    "createdAt": "2026-02-07T08:47:13.411Z",
+    "status": "completed",
+    "triggeredAt": "2026-02-07T09:47:00.030Z"
+  },
+  {
+    "id": "1770454036029",
+    "text": "Remind.",
+    "time": "2026-02-07T09:47:16.029Z",
+    "createdAt": "2026-02-07T08:47:16.029Z",
+    "status": "completed",
+    "triggeredAt": "2026-02-07T09:47:00.035Z"
+  },
+  {
+    "id": "1770454038452",
+    "text": "Reminder set.",
+    "time": "2026-02-07T09:47:18.452Z",
+    "createdAt": "2026-02-07T08:47:18.452Z",
+    "status": "completed",
+    "triggeredAt": "2026-02-07T09:47:00.039Z"
+  },
+  {
+    "id": "1770472570727",
+    "text": "Hi there, nice to meet. Hi there. I just want to.",
+    "time": "2026-02-07T14:56:10.725Z",
+    "createdAt": "2026-02-07T13:56:10.727Z",
+    "status": "active"
+  },
+  {
+    "id": "1770472695383",
+    "text": "That's the plan. We'll keep it neat and easy to reach. Just let me know what we're working with.",
+    "time": "2026-02-07T14:58:15.383Z",
+    "createdAt": "2026-02-07T13:58:15.383Z",
+    "status": "active"
+  },
+  {
+    "id": "1770478293838",
+    "text": "dont seaerch",
+    "time": "2026-02-07T16:31:33.838Z",
+    "createdAt": "2026-02-07T15:31:33.838Z",
+    "status": "completed",
+    "triggeredAt": "2026-02-07T16:31:00.027Z"
+  },
+  {
+    "id": "1770483129479",
+    "text": "lets play game",
+    "time": "2026-02-07T17:52:09.478Z",
+    "createdAt": "2026-02-07T16:52:09.479Z",
+    "status": "active"
+  },
+  {
+    "id": "1770563053896",
+    "text": "Would you like me to check the available tools for settings, Sir?",
+    "time": "2026-02-08T16:04:13.896Z",
+    "createdAt": "2026-02-08T15:04:13.896Z",
+    "status": "active"
+  },
+  {
+    "id": "1771604154104",
+    "text": "who created you",
+    "time": "2026-02-20T17:15:54.102Z",
+    "createdAt": "2026-02-20T16:15:54.104Z",
+    "status": "active"
+  },
+  {
+    "id": "1771771577101",
+    "text": "It seems like you're about your plans or schedule for tomorrow. Think to provide assistance. I should attempt to clarify the nature of the uncertainty. Is it related to a appointment, meeting or task?",
+    "time": "2026-02-22T15:46:17.098Z",
+    "createdAt": "2026-02-22T14:46:17.101Z",
+    "status": "completed",
+    "triggeredAt": "2026-02-22T15:46:00.048Z"
+  },
+  {
+    "id": "1771777449974",
+    "text": "forget old messages",
+    "time": "2026-02-22T17:24:09.974Z",
+    "createdAt": "2026-02-22T16:24:09.974Z",
+    "status": "active"
+  }
+]

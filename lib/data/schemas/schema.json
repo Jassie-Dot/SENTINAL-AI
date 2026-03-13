@@ -1,0 +1,114 @@
+[
+  {
+    "cid": 0,
+    "name": "contact_id",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 1
+  },
+  {
+    "cid": 1,
+    "name": "display_name",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 2,
+    "name": "nickname",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 3,
+    "name": "last_updated_time",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 4,
+    "name": "thumbnail",
+    "type": "BLOB",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 5,
+    "name": "company",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 6,
+    "name": "job_title",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 7,
+    "name": "notes",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 8,
+    "name": "name_prefix",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 9,
+    "name": "name_suffix",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 10,
+    "name": "given_name",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 11,
+    "name": "middle_name",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 12,
+    "name": "family_name",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+  },
+  {
+    "cid": 13,
+    "name": "checksum",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": "0",
+    "pk": 0
+  }
+]
