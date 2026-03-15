@@ -4,13 +4,43 @@
  */
 export class SoundManager {
     constructor() {
-        this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        this.ctx = null;
+        this.masterGain = null;
+        this.unlocked = false;
+        this.allowStart = false;
+    }
+
+    _initContext() {
+        if (this.ctx) return true;
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return false;
+        this.ctx = new AudioCtx();
         this.masterGain = this.ctx.createGain();
         this.masterGain.gain.value = 0.3; // Default volume
         this.masterGain.connect(this.ctx.destination);
+        return true;
+    }
+
+    _ensureReady() {
+        if (!this.allowStart) return false;
+        if (this.unlocked) return true;
+        if (!this._initContext()) return false;
+        if (this.ctx.state === 'suspended') {
+            // Resume after a user gesture; ignore errors silently.
+            this.ctx.resume().then(() => { this.unlocked = true; }).catch(() => { });
+            return false;
+        }
+        this.unlocked = true;
+        return true;
+    }
+
+    unlock() {
+        this.allowStart = true;
+        return this._ensureReady();
     }
 
     playTone(freq, type, duration, vol = 1) {
+        if (!this._ensureReady()) return;
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
         osc.type = type;
@@ -51,6 +81,7 @@ export class SoundManager {
     }
 
     playStartup() {
+        if (!this._ensureReady()) return;
         // Cinematic Bass Drop / Swell
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();

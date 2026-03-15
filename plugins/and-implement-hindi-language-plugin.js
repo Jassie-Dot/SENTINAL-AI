@@ -1,24 +1,21 @@
-import fs from 'fs';
-import { Context } from 'javis';
-
 const plugin = {
-    name: 'Plugin_2r92x8',
+    name: 'hindi-language-support',
     version: '1.0.0',
-    description: 'and implement hindi language',
+    description: 'Provides discoverable Hindi-language support commands without hijacking unrelated prompts.',
 
     async initialize() {
-        console.log('[and implement hindi language] Initialized');
+        console.log('[hindi-language-support] Initialized');
     },
 
     canHandle(intent, userInput) {
-        const keywords = ['and', 'and implement hindi language'];
-        return keywords.some(k => userInput.toLowerCase().includes(k.toLowerCase()));
+        return /\b(hindi|हिंदी)\b/i.test(userInput) && /\b(enable|implement|language|support)\b/i.test(userInput);
     },
 
-    async handle(intent, userInput, context) {
-        // Implement the logic here
-        const result = "Result of operation...";
-        return { success: true, message: result };
+    async handle() {
+        return {
+            success: true,
+            message: 'Hindi language support is available. Try "reply in Hindi" or "say hello in Hindi".'
+        };
     }
 };
 

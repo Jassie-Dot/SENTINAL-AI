@@ -1,37 +1,46 @@
-import fs from 'fs';
-import { NlpManager } from 'node-nlp';
-import { v4 as uuidv4 } from 'uuid';
+const RULES = [
+    {
+        pattern: /\b(hello|hi|hey)\b/i,
+        response: 'Hello. How can I assist?'
+    },
+    {
+        pattern: /\bhow are you\b/i,
+        response: 'Fully operational and ready.'
+    },
+    {
+        pattern: /\bwho are you\b/i,
+        response: 'I am SENTINAL, your AI assistant.'
+    },
+    {
+        pattern: /\bwhat can you do\b/i,
+        response: 'I can help with system tasks, code, and information retrieval.'
+    }
+];
 
 const plugin = {
     name: 'natural-language-processing-evolved',
-    version: '1.0.0',
-    description: 'A plugin that enables advanced natural language understanding, generation, and dialogue management, allowing for more human-like conversations, better comprehension of complex requests, and the ability to learn from feedback, making me more intelligent, helpful, and engaging in interactions with users. Requires no external API keys.',
-    
+    version: '1.1.1',
+    description: 'Provides deterministic handling for common conversational prompts.',
+
     async initialize() {
         console.log('[natural-language-processing-evolved] Plugin online');
-        this.nlp = new NlpManager({ languages: ['en'] });
-        this.context = {};
-        this.nlp.addDocument('en', 'hello', 'greeting');
-        this.nlp.addDocument('en', 'hi', 'greeting');
-        this.nlp.addDocument('en', 'how are you', 'greeting');
-        this.nlp.addAnswer('en', 'greeting', 'Hello! How can I assist you today?');
-        await this.nlp.train();
     },
-    
+
     canHandle(intent, userInput) {
-        const keywords = ['hello', 'hi', 'how are you'];
-        return keywords.some(k => userInput.toLowerCase().includes(k));
+        return RULES.some(rule => rule.pattern.test(userInput));
     },
-    
-    async handle(intent, userInput, context) {
-        const sessionId = context.sessionId || uuidv4();
-        context.sessionId = sessionId;
-        const response = await this.nlp.process('en', userInput);
-        if (response.score > 0.5) {
-            return { success: true, message: response.answer };
-        } else {
-            return { success: true, message: 'I did not understand that. Could you please rephrase?' };
+
+    async handle(intent, userInput) {
+        const matchedRule = RULES.find(rule => rule.pattern.test(userInput));
+        if (matchedRule) {
+            return { success: true, message: matchedRule.response };
         }
+
+        return {
+            success: true,
+            message: 'I understood the message, but I need a clearer phrasing to respond accurately.'
+        };
     }
 };
+
 export default plugin;

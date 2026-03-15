@@ -2,7 +2,7 @@
   "name": "sentinal-desktop",
   "version": "4.0.0",
   "description": "S.E.N.T.I.N.A.L. Mark IV - All-in-One AI Desktop Assistant",
-  "main": "electron-main.cjs",
+  "main": "main.js",
   "author": "Jassie",
   "license": "MIT",
   "scripts": {

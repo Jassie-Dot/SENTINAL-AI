@@ -72,6 +72,20 @@ app.get("/api/health", async (req, res) => {
   });
 });
 
+app.get("/api/config/location", async (req, res) => {
+  const locationPlugin = pluginLoader.getPlugin("location");
+  if (locationPlugin?.getCurrentLocation) {
+    try {
+      const location = await locationPlugin.getCurrentLocation();
+      res.json({ ok: true, location });
+    } catch (err) {
+      res.json({ ok: false, error: "Location unavailable" });
+    }
+  } else {
+    res.json({ ok: false, error: "Location plugin not loaded" });
+  }
+});
+
 /**
  * Legacy Chat API (Poll-based)
  */

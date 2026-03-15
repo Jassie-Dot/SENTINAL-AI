@@ -6,6 +6,13 @@ window.addEventListener("load", () => {
   // --- SOUND SYSTEM (PROCEDURAL) ---
   const sfx = new SoundManager();
 
+  // Unlock audio context on first user gesture (prevents autoplay warnings).
+  const unlockAudio = () => {
+    sfx.unlock?.();
+  };
+  document.addEventListener('pointerdown', unlockAudio, { once: true });
+  document.addEventListener('keydown', unlockAudio, { once: true });
+
   // Attach sounds to UI
   document.querySelectorAll('button').forEach(btn => {
     btn.addEventListener('mouseenter', () => sfx.playHover());
@@ -59,6 +66,8 @@ window.addEventListener("load", () => {
   window.socket = socket; // Expose globally for inline handlers
   let currentStreamingMessage = null;
   let isStreaming = false;
+  let lastAssistantMessageText = "";
+  let lastAssistantMessageAt = 0;
 
   // Image Attachment State
   let pendingImages = []; // Array of base64 image strings
@@ -374,6 +383,53 @@ window.addEventListener("load", () => {
       .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" class="md-link">$1</a>');
   }
 
+  // --- THOUGHT UI HELPERS ---
+  let thoughtTimer = null;
+
+  function addThought(text, category = 'system') {
+    const msg = typeof text === 'string' ? text.trim() : '';
+    if (!msg) return;
+    const detail = { text: msg, category, timestamp: Date.now() };
+    window.dispatchEvent(new CustomEvent('sentinal-thought', { detail }));
+    const live = document.getElementById('sentinalLive');
+    if (live) live.textContent = msg;
+  }
+
+  function startThinking() {
+    setStatus("thinking");
+    const bubble = document.getElementById('thoughtBubble');
+    if (bubble) {
+      const textEl = document.getElementById('thoughtBubbleText');
+      const metaEl = document.getElementById('thoughtBubbleMeta');
+      const progressEl = bubble.querySelector('.thought-bubble-progress');
+
+      if (textEl) textEl.textContent = '"Analyzing..."';
+      if (metaEl) metaEl.textContent = `system · ${new Date().toLocaleTimeString()}`;
+      if (progressEl) {
+        progressEl.style.animation = 'none';
+        progressEl.offsetHeight;
+        progressEl.style.animation = 'progressDrain 30s linear forwards';
+      }
+
+      bubble.classList.add('visible');
+      clearTimeout(thoughtTimer);
+      thoughtTimer = setTimeout(() => bubble.classList.remove('visible'), 30000);
+    }
+    const brainIcon = document.getElementById('consciousnessIndicator')?.querySelector('.brain-pulse');
+    if (brainIcon) brainIcon.classList.add('thinking');
+  }
+
+  function stopThinking() {
+    const bubble = document.getElementById('thoughtBubble');
+    if (bubble) bubble.classList.remove('visible');
+    const brainIcon = document.getElementById('consciousnessIndicator')?.querySelector('.brain-pulse');
+    if (brainIcon) brainIcon.classList.remove('thinking');
+    if (thoughtTimer) {
+      clearTimeout(thoughtTimer);
+      thoughtTimer = null;
+    }
+  }
+
   // ─── SOCKET EVENTS ──────────────────────────────────────────────
 
 
@@ -413,6 +469,55 @@ window.addEventListener("load", () => {
 
 
   let streamingRawText = ''; // Track raw text during streaming
+  function normalizeAssistantText(text) {
+    return typeof text === "string" ? text.trim() : "";
+  }
+
+  function rememberAssistantMessage(text) {
+    const normalized = normalizeAssistantText(text);
+    if (!normalized) return;
+    lastAssistantMessageText = normalized;
+    lastAssistantMessageAt = Date.now();
+  }
+
+  function isDuplicateAssistantMessage(text, windowMs = 2500) {
+    const normalized = normalizeAssistantText(text);
+    if (!normalized || !lastAssistantMessageText) return false;
+    return normalized === lastAssistantMessageText && (Date.now() - lastAssistantMessageAt) < windowMs;
+  }
+
+  function finalizeStreamingMessage(text) {
+    const normalized = normalizeAssistantText(text);
+    if (!currentStreamingMessage || !normalized) return false;
+
+    const contentDiv = currentStreamingMessage.querySelector(".streaming-text, .message-content");
+    if (contentDiv) {
+      contentDiv.className = "message-content formatted";
+      contentDiv.innerHTML = parseMarkdown(normalized);
+    }
+
+    currentStreamingMessage.classList.remove("streaming");
+    currentStreamingMessage.classList.add("sentinal");
+    rememberAssistantMessage(normalized);
+    return true;
+  }
+
+  function renderAssistantMessage(text) {
+    const normalized = normalizeAssistantText(text);
+    if (!normalized) return;
+
+    if (currentStreamingMessage && finalizeStreamingMessage(normalized)) {
+      currentStreamingMessage = null;
+      streamingRawText = "";
+      streamingIsThinking = false;
+      return;
+    }
+
+    if (isDuplicateAssistantMessage(normalized)) return;
+
+    addMessage(normalized, "sentinal");
+    rememberAssistantMessage(normalized);
+  }
 
   socket.on("chat:stream:start", () => {
     isStreaming = true;
@@ -464,10 +569,12 @@ window.addEventListener("load", () => {
         contentDiv.innerHTML = parseMarkdown(streamingRawText);
       }
       currentStreamingMessage.classList.remove('streaming');
+      rememberAssistantMessage(streamingRawText);
     }
 
     currentStreamingMessage = null;
     streamingRawText = '';
+    streamingIsThinking = false;
     setStatus("idle");
 
     // Trigger thunder when response completes
@@ -483,7 +590,7 @@ window.addEventListener("load", () => {
     setStatus("idle");
     typingEl.classList.add("hidden");
     stopThinking(); // Safety: Ensure thought UI is closed
-    addMessage(data.message, "sentinal"); // Use 'SENTINAL' class for formatting
+    renderAssistantMessage(data.message);
 
     // Handle specific actions
     if (data.data) {
@@ -559,6 +666,60 @@ window.addEventListener("load", () => {
       console.warn('[SENTINAL] Arc Reactor container not found — skipping 3D init');
       return;
     }
+
+    // Premium parallax tilt for the orb wrapper (pure CSS transform).
+    // The 3D reactor itself is rendered by `core-particles.js` (SentinalCore3D).
+    if (reactorParallax && !reactorParallax.dataset.parallaxInit) {
+      reactorParallax.dataset.parallaxInit = '1';
+
+      const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+      if (!reduceMotion) {
+        let targetX = 0;
+        let targetY = 0;
+        let currentX = 0;
+        let currentY = 0;
+        let rafId = 0;
+
+        const clamp = (v, max) => Math.max(-max, Math.min(max, v));
+        const tick = () => {
+          currentX += (targetX - currentX) * 0.09;
+          currentY += (targetY - currentY) * 0.09;
+          reactorParallax.style.setProperty('--tilt-x', `${currentY.toFixed(3)}deg`);
+          reactorParallax.style.setProperty('--tilt-y', `${currentX.toFixed(3)}deg`);
+          rafId = requestAnimationFrame(tick);
+        };
+        rafId = requestAnimationFrame(tick);
+
+        reactorParallax.addEventListener('pointerenter', () => reactorParallax.classList.add('tilting'));
+        reactorParallax.addEventListener('pointerleave', () => {
+          reactorParallax.classList.remove('tilting');
+          targetX = 0;
+          targetY = 0;
+        });
+
+        reactorParallax.addEventListener('pointermove', (e) => {
+          const r = reactorParallax.getBoundingClientRect();
+          const nx = ((e.clientX - r.left) / r.width - 0.5) * 2;  // -1..1
+          const ny = ((e.clientY - r.top) / r.height - 0.5) * 2;  // -1..1
+
+          // Keep it subtle. Too much tilt reads "toy" instead of "premium".
+          targetX = clamp(nx * 7.5, 8);
+          targetY = clamp(-ny * 7.5, 8);
+
+          // Feed CSS hotspots for a moving glint.
+          const hx = Math.max(0, Math.min(100, (nx * 0.5 + 0.5) * 100));
+          const hy = Math.max(0, Math.min(100, (ny * 0.5 + 0.5) * 100));
+          reactorParallax.style.setProperty('--hot-x', `${hx.toFixed(2)}%`);
+          reactorParallax.style.setProperty('--hot-y', `${hy.toFixed(2)}%`);
+        });
+
+        window.addEventListener('beforeunload', () => cancelAnimationFrame(rafId));
+      }
+    }
+
+    // If the premium core is already initialized, don't spin up a second renderer.
+    // A hidden RAF loop would keep running and waste GPU/CPU.
+    if (window.sentinalCore3D) return;
 
     // Cleanup existing
     while (container.firstChild) container.removeChild(container.firstChild);
@@ -758,7 +919,8 @@ window.addEventListener("load", () => {
 
     const config = modes[mode] || modes.idle;
     statusText.textContent = config.text;
-    document.body.className = config.class;
+    document.body.classList.remove('thinking', 'speaking', 'listening');
+    if (config.class) document.body.classList.add(config.class);
     statusDot.style.background = config.dotColor;
     statusDot.style.boxShadow = `0 0 12px ${config.dotColor}, 0 0 25px ${config.dotColor}44`;
 
@@ -862,19 +1024,22 @@ window.addEventListener("load", () => {
 
     locationEl.textContent = "LOCATING...";
 
-    try {
-      // 1. Prioritize Server-side configuration/override
-      const response = await fetch('/api/config/location');
-      const config = await response.json();
+    const useServerLocation = Boolean(window.electronAPI);
+    if (useServerLocation) {
+      try {
+        // 1. Prioritize Server-side configuration/override
+        const response = await fetch('/api/config/location');
+        const config = await response.json();
 
-      if (config.ok && config.location) {
-        const { city, countryCode } = config.location;
-        locationEl.textContent = `${city.toUpperCase()}, ${countryCode.toUpperCase()}`;
-        console.log(`[SENTINAL] Location (Server): ${city}, ${countryCode}`);
-        return;
+        if (config.ok && config.location) {
+          const { city, countryCode } = config.location;
+          locationEl.textContent = `${city.toUpperCase()}, ${countryCode.toUpperCase()}`;
+          console.log(`[SENTINAL] Location (Server): ${city}, ${countryCode}`);
+          return;
+        }
+      } catch (e) {
+        console.warn("[SENTINAL] Server location API unavailable, falling back to browser sensors.");
       }
-    } catch (e) {
-      console.warn("[SENTINAL] Server location API unavailable, falling back to browser sensors.");
     }
 
     // 2. Fallback to Browser Geolocation
@@ -1137,6 +1302,9 @@ window.addEventListener("load", () => {
     const div = createMessage(text, sender);
     messagesEl.appendChild(div);
     messagesEl.scrollTop = messagesEl.scrollHeight;
+    if (sender === "sentinal") {
+      rememberAssistantMessage(text);
+    }
   }
 
   function speak(text) {

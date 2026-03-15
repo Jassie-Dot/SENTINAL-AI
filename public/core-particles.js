@@ -18,6 +18,20 @@ class SentinalCore3D {
         this.mouse = { x: 0, y: 0 };
         this.currQ = new THREE.Quaternion();
         this.tgtQ = new THREE.Quaternion();
+        this.emotionColor = new THREE.Color(0x00eeff);
+        this.stateColor = new THREE.Color(0x00eeff);
+        this.spectralColor = new THREE.Color(0x00eeff);
+        this._hsl = { h: 0, s: 0, l: 0 };
+        this._tmpV = new THREE.Vector3();
+        this._prevState = this.state;
+        this.thunder = 0;
+        this.thunderPhase = Math.random() * Math.PI * 2;
+        this.statePalette = {
+            idle: new THREE.Color(0x00eeff),
+            listening: new THREE.Color(0x4dffd0),
+            processing: new THREE.Color(0xffd779),
+            speaking: new THREE.Color(0xffad78),
+        };
 
         // -- PALETTE --
         this.P = {
@@ -37,11 +51,8 @@ class SentinalCore3D {
         this._scene();
         this._glowTex();
         this._innerCore();
-        this._rings();
-        this._segments();
-        this._sparseParticles();
-        this._outerDots();
         this._lightning();
+        // Particles disabled for a cleaner, more premium core silhouette.
         this._bind();
         this.animate = this.animate.bind(this);
         this.animate();
@@ -59,6 +70,12 @@ class SentinalCore3D {
         this.ren = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: 'high-performance' });
         this.ren.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         this.ren.setClearColor(0x000000, 0);
+        if (THREE.sRGBEncoding) this.ren.outputEncoding = THREE.sRGBEncoding;
+        if (THREE.ACESFilmicToneMapping !== undefined) {
+            this.ren.toneMapping = THREE.ACESFilmicToneMapping;
+            // Lower exposure to avoid "blown out" highlights in the core.
+            this.ren.toneMappingExposure = 0.64;
+        }
 
         const w = this.el.clientWidth || 300;
         const h = this.el.clientHeight || 300;
@@ -70,18 +87,22 @@ class SentinalCore3D {
         if (getComputedStyle(this.el).position === 'static') this.el.style.position = 'relative';
 
         // Lights
-        this.ptLight = new THREE.PointLight(0x00eeff, 6, 28);
+        this.ptLight = new THREE.PointLight(0x00eeff, 5, 28);
         this.ptLight.position.set(0, 0, 1.5);
         this.scene.add(this.ptLight);
         // Accent warm-teal rim from above
-        const fill = new THREE.PointLight(0x00aacc, 3, 30);
+        const fill = new THREE.PointLight(0x00aacc, 2.4, 30);
         fill.position.set(4, 5, 6);
         this.scene.add(fill);
         // Blue-purple counter-rim
-        const fill2 = new THREE.PointLight(0x0033aa, 1.5, 20);
+        const fill2 = new THREE.PointLight(0x0033aa, 1.2, 20);
         fill2.position.set(-4, -3, 3);
         this.scene.add(fill2);
-        this.scene.add(new THREE.AmbientLight(0x001022, 1.0));
+        // Warm accent makes highlights feel more premium than pure cyan-only lighting.
+        this.warmLight = new THREE.PointLight(0xffc07a, 1.2, 26);
+        this.warmLight.position.set(-3.5, 2.2, 4.8);
+        this.scene.add(this.warmLight);
+        this.scene.add(new THREE.AmbientLight(0x001022, 0.85));
     }
 
     // ─────────────────────────────────────────────────────────
@@ -90,103 +111,291 @@ class SentinalCore3D {
         cv.width = cv.height = 64;
         const cx = cv.getContext('2d');
         const g = cx.createRadialGradient(32, 32, 0, 32, 32, 32);
-        g.addColorStop(0.00, 'rgba(255,255,255,1)');
-        g.addColorStop(0.10, 'rgba(180,255,255,0.95)');
-        g.addColorStop(0.35, 'rgba(0,220,255,0.60)');
+        g.addColorStop(0.00, 'rgba(255,255,255,0.92)');
+        g.addColorStop(0.10, 'rgba(180,255,255,0.82)');
+        g.addColorStop(0.35, 'rgba(0,220,255,0.50)');
         g.addColorStop(0.70, 'rgba(0,100,180,0.15)');
         g.addColorStop(1.00, 'rgba(0,0,0,0)');
         cx.fillStyle = g;
         cx.fillRect(0, 0, 64, 64);
         this.glowTex = new THREE.CanvasTexture(cv);
+
+        // Ring + sweep textures for additional HUD-style FX.
+        const rv = document.createElement('canvas');
+        rv.width = rv.height = 128;
+        const rx = rv.getContext('2d');
+        rx.translate(64, 64);
+        const rg = rx.createRadialGradient(0, 0, 0, 0, 0, 64);
+        rg.addColorStop(0.00, 'rgba(0,0,0,0)');
+        rg.addColorStop(0.56, 'rgba(0,0,0,0)');
+        rg.addColorStop(0.62, 'rgba(255,255,255,0.95)');
+        rg.addColorStop(0.72, 'rgba(0,220,255,0.30)');
+        rg.addColorStop(1.00, 'rgba(0,0,0,0)');
+        rx.fillStyle = rg;
+        rx.beginPath();
+        rx.arc(0, 0, 64, 0, Math.PI * 2);
+        rx.fill();
+        this.ringTex = new THREE.CanvasTexture(rv);
+
+        const sv = document.createElement('canvas');
+        sv.width = sv.height = 128;
+        const sx = sv.getContext('2d');
+        sx.translate(64, 64);
+        const sg = sx.createRadialGradient(0, 0, 0, 0, 0, 64);
+        sg.addColorStop(0.00, 'rgba(255,255,255,0)');
+        sg.addColorStop(0.50, 'rgba(255,255,255,0.12)');
+        sg.addColorStop(1.00, 'rgba(255,255,255,0)');
+        sx.fillStyle = sg;
+        sx.beginPath();
+        sx.moveTo(0, 0);
+        sx.arc(0, 0, 64, -0.28, 0.28);
+        sx.closePath();
+        sx.fill();
+        sx.strokeStyle = 'rgba(120,245,255,0.35)';
+        sx.lineWidth = 2;
+        sx.beginPath();
+        sx.arc(0, 0, 52, -0.28, 0.28);
+        sx.stroke();
+        this.sweepTex = new THREE.CanvasTexture(sv);
     }
 
     // ─────────────────────────────────────────────────────────
     _innerCore() {
         this.coreGrp = new THREE.Group();
+        // New look: aggressive prismatic nucleus.
+        this.coreMat = new THREE.ShaderMaterial({
+            uniforms: {
+                uTime: { value: 0 },
+                uColor: { value: new THREE.Color(0x9ef8ff) },
+                uPulse: { value: 0.70 },
+            },
+            vertexShader: `
+        varying vec3 vPos;
+        varying vec3 vNormal;
+        void main() {
+          vPos = position;
+          vNormal = normalize(normalMatrix * normal);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }`,
+            fragmentShader: `
+        uniform float uTime;
+        uniform vec3 uColor;
+        uniform float uPulse;
+        varying vec3 vPos;
+        varying vec3 vNormal;
+        void main() {
+          float r = length(vPos);
+          float shell = smoothstep(0.55, 0.05, r);
+          float lattice = abs(sin((vPos.x * 1.4 + vPos.y * 1.1 + vPos.z) * 11.0 + uTime * 2.6));
+          lattice = smoothstep(0.25, 0.95, lattice);
+          float bands = 0.5 + 0.5 * sin(uTime * 3.2 + r * 18.0);
+          float fres = pow(1.0 - max(0.0, dot(normalize(vNormal), vec3(0.0, 0.0, 1.0))), 1.9);
+          float a = (0.18 + lattice * 0.30 + bands * 0.14 + fres * 0.30) * uPulse * shell;
+          vec3 col = mix(uColor, vec3(1.0), 0.26 + lattice * 0.30 + fres * 0.28);
+          gl_FragColor = vec4(col, a);
+        }`,
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+        });
 
-        // ── Hot white plasma ball ──────────────────────────────
-        this.plasmaMesh = new THREE.Mesh(
-            new THREE.SphereGeometry(0.42, 32, 32),
-            new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.92, blending: THREE.AdditiveBlending })
-        );
-        this.coreGrp.add(this.plasmaMesh);
+        this.coreSphere = new THREE.Mesh(new THREE.SphereGeometry(0.50, 64, 64), this.coreMat);
+        this.coreGrp.add(this.coreSphere);
 
-        // ── Inner coronal ring ─────────────────────────────────
-        this.coronalRing = new THREE.Mesh(
-            new THREE.TorusGeometry(0.52, 0.035, 16, 80),
-            new THREE.MeshBasicMaterial({ color: 0x00eeff, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, side: THREE.DoubleSide })
+        this.coreCrystal = new THREE.Mesh(
+            new THREE.OctahedronGeometry(0.30, 2),
+            new THREE.MeshStandardMaterial({
+                color: 0xc7fbff,
+                emissive: 0x3ae6ff,
+                emissiveIntensity: 1.15,
+                metalness: 0.25,
+                roughness: 0.12,
+                transparent: true,
+                opacity: 0.88,
+                flatShading: true,
+                depthWrite: false,
+            })
         );
-        this.coreGrp.add(this.coronalRing);
+        this.coreGrp.add(this.coreCrystal);
 
-        // ── Icosahedron wireframe A (primary lattice) ──────────
-        this.latticeA = new THREE.LineSegments(
-            new THREE.WireframeGeometry(new THREE.IcosahedronGeometry(0.9, 2)),
-            new THREE.LineBasicMaterial({ color: 0x00eeff, transparent: true, opacity: 0.70, blending: THREE.AdditiveBlending })
+        this.coreWire = new THREE.LineSegments(
+            new THREE.WireframeGeometry(new THREE.IcosahedronGeometry(0.74, 0)),
+            new THREE.LineBasicMaterial({
+                color: 0x8fefff,
+                transparent: true,
+                opacity: 0.22,
+                blending: THREE.AdditiveBlending,
+            })
         );
-        this.coreGrp.add(this.latticeA);
+        this.coreGrp.add(this.coreWire);
 
-        // ── Icosahedron wireframe B (counter spin, larger) ─────
-        this.latticeB = new THREE.LineSegments(
-            new THREE.WireframeGeometry(new THREE.IcosahedronGeometry(1.22, 1)),
-            new THREE.LineBasicMaterial({ color: 0x0099bb, transparent: true, opacity: 0.40, blending: THREE.AdditiveBlending })
-        );
-        this.coreGrp.add(this.latticeB);
+        // Fresnel "glass" shell adds depth and premium rim-light without postprocessing.
+        const fresnelMat = new THREE.ShaderMaterial({
+            uniforms: {
+                uTime: { value: 0 },
+                uColor: { value: new THREE.Color(0x00eeff) },
+                uIntensity: { value: 0.12 },
+                uPower: { value: 2.2 },
+            },
+            vertexShader: `
+        varying float vF;
+        varying vec2 vUv;
+        uniform float uPower;
+        void main(){
+          vUv = uv;
+          vec3 n = normalize(normalMatrix * normal);
+          vec3 v = normalize(-(modelViewMatrix * vec4(position, 1.0)).xyz);
+          vF = pow(1.0 - max(0.0, dot(n, v)), uPower);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }`,
+            fragmentShader: `
+        uniform float uTime;
+        uniform vec3 uColor;
+        uniform float uIntensity;
+        varying float vF;
+        varying vec2 vUv;
+        void main(){
+          float scan = 0.6 + 0.4*sin((vUv.y + uTime*0.18) * 18.0);
+          float a = vF * uIntensity * (0.85 + 0.15*scan);
+          gl_FragColor = vec4(uColor, a);
+        }`,
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+        });
 
-        // ── Octahedron frame (tumbles diagonally) ─────────────
-        this.latticeC = new THREE.LineSegments(
-            new THREE.WireframeGeometry(new THREE.OctahedronGeometry(0.75, 1)),
-            new THREE.LineBasicMaterial({ color: 0x88ffff, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending })
-        );
-        this.coreGrp.add(this.latticeC);
-
-        // ── Dodecahedron wireframe D (slow tumble, outermost lattice) ─
-        this.latticeD = new THREE.LineSegments(
-            new THREE.WireframeGeometry(new THREE.DodecahedronGeometry(1.55, 0)),
-            new THREE.LineBasicMaterial({ color: 0x004455, transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending })
-        );
-        this.coreGrp.add(this.latticeD);
-
-        // ── Second coronal ring (perpendicular axis, tilted 90°) ───────
-        this.coronalRing2 = new THREE.Mesh(
-            new THREE.TorusGeometry(0.60, 0.020, 12, 80),
-            new THREE.MeshBasicMaterial({ color: 0x44ffee, transparent: true, opacity: 0.60, blending: THREE.AdditiveBlending, side: THREE.DoubleSide })
-        );
-        this.coronalRing2.rotation.x = Math.PI / 2;
-        this.coreGrp.add(this.coronalRing2);
-
-        // ── Equatorial energy disc (flat thin ring that pulses) ────────
-        this.energyDisc = new THREE.Mesh(
-            new THREE.TorusGeometry(0.78, 0.008, 6, 120),
-            new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.50, blending: THREE.AdditiveBlending })
-        );
-        this.coreGrp.add(this.energyDisc);
+        this.fresnelShell = new THREE.Mesh(new THREE.SphereGeometry(1.05, 48, 48), fresnelMat);
+        this.fresnelShell.material.side = THREE.FrontSide;
+        this.fresnelShell.renderOrder = 5;
+        this.fresnelMat = fresnelMat;
+        this.coreGrp.add(this.fresnelShell);
 
         this.scene.add(this.coreGrp);
     }
 
+    _haloLayers() {
+        this.haloGrp = new THREE.Group();
+
+        this.crownRing = new THREE.Mesh(
+            new THREE.TorusGeometry(1.15, 0.012, 8, 160),
+            new THREE.MeshBasicMaterial({
+                color: 0x86fbff,
+                transparent: true,
+                opacity: 0.24,
+                blending: THREE.AdditiveBlending,
+                side: THREE.DoubleSide,
+            })
+        );
+        this.crownRing.rotation.x = Math.PI / 2;
+        this.haloGrp.add(this.crownRing);
+
+        this.scene.add(this.haloGrp);
+    }
+
     // ─────────────────────────────────────────────────────────
+    _fxLayers() {
+        this.fxGrp = new THREE.Group();
+
+        this.scanSweep = new THREE.Sprite(
+            new THREE.SpriteMaterial({
+                map: this.sweepTex,
+                color: 0x7af5ff,
+                transparent: true,
+                opacity: 0.08,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+            })
+        );
+        this.scanSweep.scale.set(4.8, 4.8, 1);
+        this.fxGrp.add(this.scanSweep);
+
+        this.coreSpark = new THREE.Sprite(
+            new THREE.SpriteMaterial({
+                map: this.glowTex,
+                color: 0xffffff,
+                transparent: true,
+                opacity: 0.0,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+            })
+        );
+        this.coreSpark.scale.set(1.1, 1.1, 1);
+        this.coreSpark.userData = { active: false, life: 0 };
+        this.fxGrp.add(this.coreSpark);
+
+        this.shockwaves = [];
+        for (let i = 0; i < 5; i++) {
+            const sw = new THREE.Sprite(
+                new THREE.SpriteMaterial({
+                    map: this.ringTex,
+                    color: 0xffffff,
+                    transparent: true,
+                    opacity: 0.0,
+                    blending: THREE.AdditiveBlending,
+                    depthWrite: false,
+                })
+            );
+            sw.scale.set(1, 1, 1);
+            sw.material.rotation = Math.random() * Math.PI * 2;
+            sw.userData = { active: false, life: 0, speed: 0.8 + i * 0.1, intensity: 1 };
+            this.shockwaves.push(sw);
+            this.fxGrp.add(sw);
+        }
+
+        // Lens flares removed: they read as a "background plate" behind the rings.
+        this.flares = null;
+
+        this.scene.add(this.fxGrp);
+    }
+
+    _spawnShockwave(intensity = 1) {
+        if (!this.shockwaves || this.shockwaves.length === 0) return;
+
+        const sw = this.shockwaves.find(s => !s.userData.active) || this.shockwaves[0];
+        sw.userData.active = true;
+        sw.userData.life = 0;
+        sw.userData.intensity = Math.max(0.15, Math.min(2.0, intensity));
+        sw.material.opacity = 0.0;
+        sw.material.color.copy(this.P.white).lerp(this.stateColor, 0.72);
+        sw.material.rotation = Math.random() * Math.PI * 2;
+        sw.scale.set(1.15, 1.15, 1);
+
+        if (this.coreSpark) {
+            this.coreSpark.userData.active = true;
+            this.coreSpark.userData.life = 0;
+            this.coreSpark.material.opacity = 0.55 * sw.userData.intensity;
+            const sc = 1.0 + sw.userData.intensity * 0.45;
+            this.coreSpark.scale.set(sc, sc, 1);
+            this.coreSpark.material.color.copy(this.P.white).lerp(this.stateColor, 0.4);
+        }
+    }
+
     _rings() {
         this.ringGrp = new THREE.Group();
         this.rings = [];
 
         const defs = [
-            // r,   tube,  segs, opacity, color,      ax,                                    speed
-            [2.05, 0.025, 180, 0.92, 0x00eeff, new THREE.Vector3(0, 1, 0), 0.55],
-            [2.05, 0.018, 180, 0.82, 0x88ffff, new THREE.Vector3(1, 0, 0), -0.42],
-            [2.35, 0.013, 160, 0.65, 0x00ccbb, new THREE.Vector3(0.7, 0.7, 0).normalize(), 0.30],
-            [1.75, 0.011, 140, 0.52, 0x00eeff, new THREE.Vector3(0, 0, 1), -0.25],
-            [2.68, 0.008, 120, 0.38, 0x006688, new THREE.Vector3(0.5, -0.5, 0.7).normalize(), 0.20],
-            [1.55, 0.006, 100, 0.30, 0x00eeff, new THREE.Vector3(-1, 0.4, 0).normalize(), -0.18],
+            // r, tube, segs, opacity, color, axis, speed, scale, rotation
+            [2.12, 0.024, 180, 0.56, 0x7ff3ff, new THREE.Vector3(0, 1, 0), 0.45, [1.04, 0.92, 1.0], [0, 0, 0]],
+            [2.12, 0.018, 180, 0.50, 0x9df9ff, new THREE.Vector3(1, 0, 0), -0.38, [0.94, 1.06, 1.0], [0.08, 0.18, 0]],
+            [2.48, 0.013, 160, 0.36, 0x00c8d6, new THREE.Vector3(0.55, 0.75, 0.2).normalize(), 0.28, [1.06, 0.94, 1.0], [0.22, 0, 0.42]],
+            [1.54, 0.009, 140, 0.30, 0xffd6a6, new THREE.Vector3(-0.6, 0.35, 0.7).normalize(), -0.22, [0.96, 1.04, 1.0], [0.28, -0.18, 0.2]],
+            [2.88, 0.01, 160, 0.24, 0x6bbaff, new THREE.Vector3(0.2, -0.7, 0.6).normalize(), 0.18, [1.08, 0.94, 1.0], [-0.12, 0.26, 0]],
         ];
 
-        defs.forEach(([r, tube, segs, op, col, ax, spd]) => {
+        defs.forEach(([r, tube, segs, op, col, ax, spd, scale, rot]) => {
             const geo = new THREE.TorusGeometry(r, tube, 8, segs);
             const mat = new THREE.MeshBasicMaterial({
-                color: col, transparent: true, opacity: op,
-                blending: THREE.AdditiveBlending, side: THREE.DoubleSide
+                color: col,
+                transparent: true,
+                opacity: op,
+                blending: THREE.AdditiveBlending,
+                side: THREE.DoubleSide,
             });
             const ring = new THREE.Mesh(geo, mat);
-            ring.userData = { ax, spd, base: op };
+            ring.rotation.set(rot[0], rot[1], rot[2]);
+            ring.scale.set(scale[0], scale[1], scale[2]);
+            ring.userData = { ax, spd, base: op, baseColor: new THREE.Color(col) };
             this.rings.push(ring);
             this.ringGrp.add(ring);
         });
@@ -204,13 +413,20 @@ class SentinalCore3D {
         for (let i = 0; i < 14; i++) {
             const a = (i / 14) * Math.PI * 2;
             const mat = new THREE.MeshBasicMaterial({
-                color: 0x88ffff, transparent: true, opacity: 0.85,
+                color: 0x88ffff, transparent: true, opacity: 0.68,
                 blending: THREE.AdditiveBlending
             });
             const seg = new THREE.Mesh(segGeo, mat);
             seg.position.set(Math.cos(a) * 1.90, Math.sin(a) * 1.90, 0);
             seg.lookAt(0, 0, 0);
-            seg.userData = { baseAngle: a, r: 1.90, spd: 0.55, plane: 'xy', offset: i * 0.4 };
+            seg.userData = {
+                baseAngle: a,
+                r: 1.90,
+                spd: 0.55,
+                plane: 'xy',
+                offset: i * 0.4,
+                baseColor: new THREE.Color(0x88ffff),
+            };
             this.segs.push(seg);
             this.segGrp.add(seg);
         }
@@ -219,13 +435,20 @@ class SentinalCore3D {
         for (let i = 0; i < 10; i++) {
             const a = (i / 10) * Math.PI * 2;
             const mat = new THREE.MeshBasicMaterial({
-                color: 0x00eeff, transparent: true, opacity: 0.75,
+                color: 0x00eeff, transparent: true, opacity: 0.60,
                 blending: THREE.AdditiveBlending
             });
             const seg = new THREE.Mesh(segGeo, mat);
             seg.position.set(Math.cos(a) * 1.90, 0, Math.sin(a) * 1.90);
             seg.lookAt(0, 0, 0);
-            seg.userData = { baseAngle: a, r: 1.90, spd: -0.42, plane: 'xz', offset: i * 0.5 };
+            seg.userData = {
+                baseAngle: a,
+                r: 1.90,
+                spd: -0.42,
+                plane: 'xz',
+                offset: i * 0.5,
+                baseColor: new THREE.Color(0x00eeff),
+            };
             this.segs.push(seg);
             this.segGrp.add(seg);
         }
@@ -263,6 +486,7 @@ class SentinalCore3D {
                 uTime: { value: 0 },
                 uAudio: { value: 0 },
                 uGlow: { value: this.glowTex },
+                uTint: { value: new THREE.Color(0x00eeff) },
             },
             vertexShader: `
         attribute float aSize;
@@ -279,12 +503,14 @@ class SentinalCore3D {
         }`,
             fragmentShader: `
         uniform sampler2D uGlow;
+        uniform vec3 uTint;
         varying float vAlpha;
         void main(){
           vec4 tex = texture2D(uGlow, gl_PointCoord);
           if(tex.a < 0.01) discard;
           // Bright cyan-white sparkle
-          vec3 col = mix(vec3(0.0, 0.92, 1.0), vec3(1.0,1.0,1.0), tex.r);
+          vec3 coreCol = mix(vec3(0.0, 0.92, 1.0), vec3(1.0,1.0,1.0), tex.r);
+          vec3 col = mix(coreCol, uTint, 0.45);
           gl_FragColor = vec4(col, tex.a * vAlpha);
         }`,
             blending: THREE.AdditiveBlending,
@@ -326,6 +552,7 @@ class SentinalCore3D {
                 uTime: { value: 0 },
                 uAudio: { value: 0 },
                 uGlow: { value: this.glowTex },
+                uTint: { value: new THREE.Color(0x00eeff) },
             },
             vertexShader: `
         attribute float aSize;
@@ -342,11 +569,13 @@ class SentinalCore3D {
         }`,
             fragmentShader: `
         uniform sampler2D uGlow;
+        uniform vec3 uTint;
         varying float vAlpha;
         void main(){
           vec4 tex = texture2D(uGlow, gl_PointCoord);
           if(tex.a < 0.01) discard;
-          gl_FragColor = vec4(0.0, 0.85, 1.0, tex.a * vAlpha);
+          vec3 col = mix(vec3(0.0, 0.85, 1.0), uTint, 0.60);
+          gl_FragColor = vec4(col, tex.a * vAlpha);
         }`,
             blending: THREE.AdditiveBlending,
             depthWrite: false,
@@ -363,10 +592,10 @@ class SentinalCore3D {
         this.bolts = [];
         this.boltGrp = new THREE.Group();
 
-        for (let i = 0; i < 12; i++) {
+        for (let i = 0; i < 14; i++) {
             const geo = new THREE.BufferGeometry().setFromPoints(this._zapPath(
-                new THREE.Vector3((Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2),
-                new THREE.Vector3((Math.random() - 0.5) * 4, (Math.random() - 0.5) * 4, (Math.random() - 0.5) * 4),
+                new THREE.Vector3((Math.random() - 0.5) * 1.6, (Math.random() - 0.5) * 1.6, (Math.random() - 0.5) * 1.6),
+                new THREE.Vector3((Math.random() - 0.5) * 2.6, (Math.random() - 0.5) * 2.6, (Math.random() - 0.5) * 2.6),
                 7
             ));
             const mat = new THREE.LineBasicMaterial({
@@ -374,7 +603,7 @@ class SentinalCore3D {
                 transparent: true, opacity: 0, blending: THREE.AdditiveBlending
             });
             const line = new THREE.Line(geo, mat);
-            line.userData = { cd: Math.random() * 3 };
+            line.userData = { cd: Math.random() * 2.5 };
             this.bolts.push(line);
             this.boltGrp.add(line);
         }
@@ -405,6 +634,21 @@ class SentinalCore3D {
             const s = e.detail?.state;
             if (['idle', 'listening', 'processing', 'speaking'].includes(s)) this.state = s;
         });
+        window.addEventListener('sentinal-emotion-color', e => {
+            const hex = e.detail?.color;
+            if (typeof hex === 'string') this.emotionColor.set(hex);
+        });
+
+        // Also pick up the CSS theme color (set by the feelings UI) as a fallback.
+        const readCssEmotion = () => {
+            const css = getComputedStyle(document.documentElement)
+                .getPropertyValue('--sentinal-emotion-color')
+                .trim();
+            if (css) this.emotionColor.set(css);
+        };
+        readCssEmotion();
+        this._cssEmotionTimer = window.setInterval(readCssEmotion, 900);
+        window.addEventListener('beforeunload', () => clearInterval(this._cssEmotionTimer));
 
         const panel = this.el.closest('.left-panel') || document.body;
         panel.addEventListener('mousemove', e => {
@@ -435,6 +679,7 @@ class SentinalCore3D {
 
         // State speed multiplier
         const sm = { idle: 1.0, listening: 1.7, processing: 3.0, speaking: 2.1 }[this.state] || 1.0;
+        const energyBoost = { idle: 1.0, listening: 1.15, processing: 1.42, speaking: 1.28 }[this.state] || 1.0;
 
         // Simulated audio
         if (this.state === 'processing') this.audioTgt = 0.5 + Math.sin(t * 16) * 0.30;
@@ -443,15 +688,100 @@ class SentinalCore3D {
         else this.audioTgt = 0.02 + Math.abs(Math.sin(t * 0.8)) * 0.03;
         this.audio += (this.audioTgt - this.audio) * Math.min(1, delta * 8);
         const au = this.audio;
+        this.stateColor.copy(this.statePalette[this.state] || this.statePalette.idle).lerp(this.emotionColor, 0.36);
+
+        this.thunder = Math.max(0, this.thunder - delta * 2.6);
+        const thunderF = this.thunder * (0.6 + Math.sin(t * 28 + this.thunderPhase) * 0.4);
+
+        // Subtle hue drift makes the core feel more "alive" without looking rainbow-noisy.
+        this.spectralColor.copy(this.stateColor);
+        this.spectralColor.getHSL(this._hsl);
+        const hueShift = Math.sin(t * 0.18) * (this.state === 'processing' ? 0.035 : this.state === 'speaking' ? 0.025 : 0.015);
+        this.spectralColor.setHSL(
+            (this._hsl.h + hueShift + 1) % 1,
+            Math.min(1, this._hsl.s * 1.08 + 0.02),
+            Math.min(1, this._hsl.l * 1.04 + 0.01)
+        );
+
+        if (this._prevState !== this.state) {
+            this._prevState = this.state;
+            this._spawnShockwave(0.9 + au * 1.1);
+        }
+        if ((this.state === 'processing' || this.state === 'speaking') && Math.random() < delta * (this.state === 'processing' ? 0.85 : 0.55)) {
+            this._spawnShockwave(0.55 + au * 1.2);
+        }
+
+        this.camera.position.z = 8.0 - au * 0.38 - (energyBoost - 1) * 0.12 + Math.sin(t * 0.45) * 0.08;
 
         // ── Shader time ─────────────────────────────────
         if (this.innerCloudMat) {
             this.innerCloudMat.uniforms.uTime.value += delta * sm;
             this.innerCloudMat.uniforms.uAudio.value = au;
+            this.innerCloudMat.uniforms.uTint.value.lerp(this.spectralColor, 0.08);
         }
         if (this.outerDotsMat) {
             this.outerDotsMat.uniforms.uTime.value += delta * 0.5;
             this.outerDotsMat.uniforms.uAudio.value = au;
+            this.outerDotsMat.uniforms.uTint.value.lerp(this.spectralColor, 0.06);
+        }
+
+        if (this.scanSweep) {
+            const sweepBase = this.state === 'processing' ? 0.14 : this.state === 'speaking' ? 0.11 : this.state === 'listening' ? 0.10 : 0.08;
+            this.scanSweep.material.opacity = Math.min(0.42, sweepBase + au * 0.16 + Math.abs(Math.sin(t * 0.6)) * 0.03);
+            this.scanSweep.material.color.lerp(this.spectralColor, 0.08);
+            this.scanSweep.material.rotation += delta * (0.55 * sm);
+            const sc = 4.8 + Math.sin(t * 1.2) * 0.10 + au * 0.55;
+            this.scanSweep.scale.set(sc, sc, 1);
+        }
+
+        if (this.coreSpark && this.coreSpark.userData && this.coreSpark.userData.active) {
+            this.coreSpark.userData.life += delta * 2.4;
+            const p = this.coreSpark.userData.life;
+            const fade = Math.max(0, 1 - p);
+            this.coreSpark.material.opacity = (this.coreSpark.userData.maxOp || this.coreSpark.material.opacity) * fade;
+            const baseScale = this.coreSpark.userData.baseScale || this.coreSpark.scale.x;
+            const s = baseScale * (1 + p * 0.35);
+            this.coreSpark.scale.set(s, s, 1);
+            this.coreSpark.material.color.lerp(this.spectralColor, 0.08);
+            if (p >= 1) {
+                this.coreSpark.userData.active = false;
+                this.coreSpark.material.opacity = 0.0;
+            }
+        }
+
+        if (this.shockwaves) {
+            this.shockwaves.forEach((sw) => {
+                if (!sw.userData.active) return;
+                sw.userData.life += delta * sw.userData.speed;
+                const p = sw.userData.life;
+                const eased = 1 - Math.pow(1 - Math.min(1, p), 2.4);
+                const s = 1.15 + eased * (3.8 + sw.userData.intensity * 0.6);
+                sw.scale.set(s, s, 1);
+                const swOp = (1 - p) * (0.32 + au * 0.26) * sw.userData.intensity;
+                sw.material.opacity = Math.min(0.55, Math.max(0, swOp));
+                sw.material.color.copy(this.P.white).lerp(this.spectralColor, 0.66);
+                sw.material.rotation += delta * (0.35 + sw.userData.speed * 0.12);
+                if (p >= 1) {
+                    sw.userData.active = false;
+                    sw.material.opacity = 0.0;
+                }
+            });
+        }
+
+        if (this.flares) {
+            // Keep the core visually aligned; outer DOM wrapper handles parallax tilt.
+            const px = 0.0;
+            const py = 0.0;
+            this.flares.forEach((sp, i) => {
+                const wob = Math.sin(t * (0.65 + i * 0.18) + i * 1.7) * 0.04;
+                const par = 0.65 + i * 0.18;
+                sp.position.set(sp.userData.baseX + px * par, sp.userData.baseY + py * par, 0);
+                const fScale = sp.userData.baseScale * (1 + au * (0.22 + i * 0.06) + wob * 0.25);
+                sp.scale.set(fScale, fScale, 1);
+                const stateBoost = this.state === 'processing' ? 0.06 : this.state === 'speaking' ? 0.04 : 0.0;
+                sp.material.opacity = sp.userData.baseOp + au * (0.10 + i * 0.05) + stateBoost;
+                sp.material.color.lerp(this.spectralColor, 0.06);
+            });
         }
 
         // ── Particle clouds drift ─────────────────────────
@@ -466,67 +796,74 @@ class SentinalCore3D {
 
         // ── Inner Core ────────────────────────────────────
         if (this.coreGrp) {
-            const breathe = 1.0 + Math.sin(t * 2.4) * 0.04 + au * 0.18;
+            const breathe = 1.0 + Math.sin(t * 1.8) * 0.02 + au * 0.10;
             this.coreGrp.scale.setScalar(breathe);
+            this.coreGrp.rotation.x = Math.sin(t * 18) * 0.02 * this.thunder;
+            this.coreGrp.rotation.y = Math.cos(t * 20) * 0.02 * this.thunder;
 
-            // Plasma pulsing
-            this.plasmaMesh.material.opacity = 0.80 + au * 0.20;
-            this.coronalRing.rotation.z += delta * 0.8 * sm;
-            this.coronalRing.material.opacity = 0.65 + Math.sin(t * 3) * 0.20 + au * 0.30;
-
-            // Lattice A spins forward
-            this.latticeA.rotation.y += delta * 0.42 * sm;
-            this.latticeA.rotation.x += delta * 0.20 * sm;
-            this.latticeA.material.opacity = 0.50 + Math.sin(t * 4) * 0.18 + au * 0.35;
-
-            // Lattice B counter-spins
-            this.latticeB.rotation.y -= delta * 0.30 * sm;
-            this.latticeB.rotation.z += delta * 0.15 * sm;
-            this.latticeB.material.opacity = 0.28 + Math.sin(t * 2.5) * 0.10 + au * 0.22;
-
-            // Lattice C tumbles
-            this.latticeC.rotation.x += delta * 0.25 * sm;
-            this.latticeC.rotation.y -= delta * 0.18 * sm;
-            this.latticeC.material.opacity = 0.22 + Math.sin(t * 5) * 0.10 + au * 0.18;
-
-            // Lattice D (dodecahedron) — slow majestic tumble
-            if (this.latticeD) {
-                this.latticeD.rotation.x += delta * 0.08 * sm;
-                this.latticeD.rotation.y += delta * 0.06 * sm;
-                this.latticeD.rotation.z -= delta * 0.04 * sm;
-                this.latticeD.material.opacity = 0.12 + Math.sin(t * 1.5) * 0.08 + au * 0.15;
+            if (this.coreMat) {
+                this.coreMat.uniforms.uTime.value += delta * (1.6 * sm);
+                this.coreMat.uniforms.uPulse.value = 0.62 + au * 0.55 + thunderF * 0.35;
+                this.coreMat.uniforms.uColor.value.lerp(this.spectralColor, 0.10);
             }
 
-            // Second coronal ring — spins on X (perpendicular)
-            if (this.coronalRing2) {
-                this.coronalRing2.rotation.y += delta * 1.1 * sm;
-                this.coronalRing2.material.opacity = 0.50 + Math.sin(t * 4.5) * 0.25 + au * 0.35;
+            if (this.coreSphere) {
+                const s = 1.0 + Math.sin(t * 3.8) * 0.05 + au * 0.14 + thunderF * 0.08;
+                this.coreSphere.scale.setScalar(s);
             }
 
-            // Energy disc — thin equatorial flash ring
-            if (this.energyDisc) {
-                this.energyDisc.rotation.z -= delta * 0.4 * sm;
-                // Dramatic flash pulse
-                const flash = 0.30 + Math.pow(Math.abs(Math.sin(t * 2.2)), 3) * 0.60 + au * 0.40;
-                this.energyDisc.material.opacity = Math.min(0.95, flash);
+            if (this.coreCrystal) {
+                this.coreCrystal.rotation.y += delta * 0.85 * sm;
+                this.coreCrystal.rotation.x -= delta * 0.65 * sm;
+                const crystalOp = 0.65 + au * 0.28 + Math.sin(t * 3.2) * 0.06;
+                this.coreCrystal.material.opacity = Math.min(0.95, Math.max(0.3, crystalOp));
+                this.coreCrystal.material.color.lerp(this.spectralColor, 0.22);
+                if (this.coreCrystal.material.emissive) {
+                    this.coreCrystal.material.emissive.lerp(this.spectralColor, 0.18);
+                    this.coreCrystal.material.emissiveIntensity = 0.95 + au * 0.6 + thunderF * 1.1;
+                }
             }
+
+            if (this.coreWire) {
+                this.coreWire.rotation.y += delta * 0.65 * sm;
+                this.coreWire.rotation.x += delta * 0.45 * sm;
+                const wireOp = 0.12 + Math.sin(t * 3.2) * 0.06 + au * 0.18;
+                this.coreWire.material.opacity = Math.min(0.42, Math.max(0.06, wireOp));
+                this.coreWire.material.color.lerp(this.spectralColor, 0.10);
+            }
+
+
+            if (this.fresnelMat && this.fresnelShell) {
+                this.fresnelMat.uniforms.uTime.value += delta * sm;
+                this.fresnelMat.uniforms.uColor.value.lerp(this.spectralColor, 0.08);
+                const ib = this.state === 'processing' ? 0.16 : this.state === 'speaking' ? 0.15 : this.state === 'listening' ? 0.14 : 0.12;
+                this.fresnelMat.uniforms.uIntensity.value = Math.min(0.24, ib + au * 0.16);
+                this.fresnelMat.uniforms.uPower.value = 1.9 + Math.abs(Math.sin(t * 0.85)) * 0.45 + au * 0.28;
+                const s = 1.05 + au * 0.05 + Math.sin(t * 1.1) * 0.01;
+                this.fresnelShell.scale.set(s, s, s);
+            }
+        }
+
+        if (this.haloGrp && this.crownRing) {
+            this.haloGrp.rotation.z -= delta * 0.06 * sm;
+            this.crownRing.rotation.y += delta * 0.6 * sm;
+            this.crownRing.rotation.x += delta * 0.2 * sm;
+            const crownOp = 0.12 + Math.abs(Math.sin(t * 2.4)) * 0.10 + au * 0.10;
+            this.crownRing.material.opacity = Math.min(0.36, Math.max(0.05, crownOp));
+            this.crownRing.material.color.lerp(this.stateColor, 0.07);
         }
 
         // ── Point light pulse ─────────────────────────────
         if (this.ptLight) {
-            this.ptLight.intensity = 4.0 + au * 6.0 + Math.sin(t * 2.8) * 0.9;
-            // Color shift: cyan → white at high audio
-            this.ptLight.color.lerp(au > 0.3 ? this.P.brightCyan : this.P.cyan, 0.05);
+            this.ptLight.intensity = (3.4 + au * 4.8 + Math.sin(t * 2.8) * 0.65 + thunderF * 6.2) * (energyBoost * 0.85);
+            this.ptLight.color.lerp(this.stateColor, 0.08);
+        }
+        if (this.warmLight) {
+            this.warmLight.intensity = 0.8 + Math.max(0, Math.sin(t * 1.2)) * 0.25 + (this.state === 'speaking' ? 0.45 : this.state === 'processing' ? 0.34 : 0.16);
+            this.warmLight.color.setHex(this.state === 'processing' ? 0xffdc8a : this.state === 'speaking' ? 0xffb07c : 0xffc07a);
         }
 
         // ── Orbital Rings ─────────────────────────────────
-        if (this.rings) {
-            this.rings.forEach(ring => {
-                ring.rotateOnAxis(ring.userData.ax, delta * ring.userData.spd * sm);
-                const op = ring.userData.base + au * 0.30 + Math.sin(t * 2.5 + ring.userData.spd) * 0.05;
-                ring.material.opacity = Math.min(1.0, Math.max(0.05, op));
-            });
-        }
 
         // ── Segment Nodes orbit ───────────────────────────
         if (this.segs) {
@@ -537,6 +874,7 @@ class SentinalCore3D {
                 else seg.position.set(Math.cos(a) * d.r, 0, Math.sin(a) * d.r);
                 seg.lookAt(0, 0, 0);
                 seg.material.opacity = 0.60 + Math.sin(t * 5 + d.offset) * 0.35 + au * 0.4;
+                seg.material.color.copy(d.baseColor).lerp(this.stateColor, 0.42);
                 const ns = 1.0 + Math.sin(t * 6 + d.offset) * 0.15 + au * 0.5;
                 seg.scale.setScalar(Math.max(0.1, ns));
             });
@@ -544,19 +882,21 @@ class SentinalCore3D {
 
         // ── Arc Lightning ─────────────────────────────────
         if (this.bolts) {
-            const fProb = this.state === 'processing' ? 0.10
-                : this.state === 'speaking' ? 0.05
-                    : this.state === 'listening' ? 0.02 : 0.006;
+            const fProb = this.state === 'processing' ? 0.16
+                : this.state === 'speaking' ? 0.09
+                    : this.state === 'listening' ? 0.04 : 0.012;
 
             this.bolts.forEach(b => {
                 b.userData.cd -= delta;
                 if (b.material.opacity > 0) b.material.opacity -= delta * 6;
+                b.material.color.lerp(this.stateColor, 0.12);
                 if (b.userData.cd <= 0 && Math.random() < fProb) {
                     b.material.opacity = 0.7 + Math.random() * 0.3;
                     b.userData.cd = 1.0 + Math.random() * 2.5;
+                    this.thunder = Math.min(1.2, Math.max(this.thunder, 0.7 + Math.random() * 0.6));
                     const pts = this._zapPath(
-                        new THREE.Vector3((Math.random() - 0.5) * 2.2, (Math.random() - 0.5) * 2.2, (Math.random() - 0.5) * 2.2),
-                        new THREE.Vector3((Math.random() - 0.5) * 4.0, (Math.random() - 0.5) * 4.0, (Math.random() - 0.5) * 4.0),
+                        new THREE.Vector3((Math.random() - 0.5) * 1.6, (Math.random() - 0.5) * 1.6, (Math.random() - 0.5) * 1.6),
+                        new THREE.Vector3((Math.random() - 0.5) * 2.6, (Math.random() - 0.5) * 2.6, (Math.random() - 0.5) * 2.6),
                         7
                     );
                     b.geometry.setFromPoints(pts);
@@ -565,9 +905,9 @@ class SentinalCore3D {
             });
         }
 
-        // ── Mouse parallax ────────────────────────────────
-        this.tgtQ.setFromEuler(new THREE.Euler(-this.mouse.y * 0.14, this.mouse.x * 0.14, 0, 'XYZ'));
-        this.currQ.slerp(this.tgtQ, 0.035);
+        // ── Keep the core aligned (no internal mouse tilt) ───────────
+        this.tgtQ.identity();
+        this.currQ.slerp(this.tgtQ, 0.06);
         this.scene.quaternion.copy(this.currQ);
 
         this.ren.render(this.scene, this.camera);

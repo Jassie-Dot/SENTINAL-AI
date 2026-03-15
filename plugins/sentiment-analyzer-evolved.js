@@ -1,50 +1,51 @@
-import fs from 'fs';
-import v4 as uuid4 } from 'uuid';
-import axios from 'axios';
+import natural from 'natural';
+
+const { PorterStemmer, SentimentAnalyzer, WordTokenizer } = natural;
+
+function extractTargetText(userInput = '') {
+    const quoted = userInput.match(/["']([^"']+)["']/);
+    if (quoted) {
+        return quoted[1];
+    }
+
+    return userInput
+        .replace(/.*?(?:analyze|check)\s+(?:the\s+)?(?:sentiment|tone|mood|emotion)\s+(?:of|for)?/i, '')
+        .trim();
+}
 
 const plugin = {
     name: 'sentiment-analyzer',
-    version: '1.0.0',
-    description: 'Analyze emotional tone of text. This plugin uses the MeaningCloud Sentiment Analysis API. To use this plugin, you need to set the following environment variables: MEANINGCLOUD_API_KEY, MEANINGCLOUD_API_URL',
-    
+    version: '1.1.0',
+    description: 'Analyzes the sentiment of user-provided text without relying on external APIs.',
+
     async initialize() {
         console.log('[sentiment-analyzer] Plugin online');
+        this.tokenizer = new WordTokenizer();
+        this.analyzer = new SentimentAnalyzer('English', PorterStemmer, 'afinn');
     },
-    
+
     canHandle(intent, userInput) {
-        const keywords = ['analyze', 'sentiment', 'mood', 'tone', 'emotion'];
-        return keywords.some(k => userInput.toLowerCase().includes(k));
+        return /\b(sentiment|tone|mood|emotion)\b/i.test(userInput) && /\b(analyze|check|detect)\b/i.test(userInput);
     },
-    
-    async handle(intent, userInput, context) {
-        try {
-            const apiKey = process.env.MEANINGCLOUD_API_KEY;
-            const apiUrl = process.env.MEANINGCLOUD_API_URL;
-            if (!apiKey || !apiUrl) {
-                return { success: false, message: 'Missing API key or URL' };
-            }
-            
-            const sentimentUrl = `${apiUrl}/sentiment-2.1?key=${apiKey}&lang=en&txt=${userInput}`;
-            const response = await axios.get(sentimentUrl);
-            const sentiment = response.data;
-            
-            const score = sentiment.score_tag;
-            let message;
-            if (score === 'P') {
-                message = 'The sentiment of the text is positive.';
-            } else if (score === 'N') {
-                message = 'The sentiment of the text is negative.';
-            } else if (score === 'NEU') {
-                message = 'The sentiment of the text is neutral.';
-            } else {
-                message = 'Unable to determine the sentiment of the text.';
-            }
-            
-            return { success: true, message: message };
-        } catch (error) {
-            console.error(error);
-            return { success: false, message: 'Error analyzing sentiment' };
+
+    async handle(intent, userInput) {
+        const targetText = extractTargetText(userInput);
+        if (!targetText) {
+            return { success: false, message: 'Provide text to analyze.' };
         }
+
+        const tokens = this.tokenizer.tokenize(targetText);
+        const score = this.analyzer.getSentiment(tokens);
+
+        let label = 'neutral';
+        if (score > 0.25) label = 'positive';
+        if (score < -0.25) label = 'negative';
+
+        return {
+            success: true,
+            message: `Sentiment: ${label} (score ${score.toFixed(2)})`
+        };
     }
 };
+
 export default plugin;

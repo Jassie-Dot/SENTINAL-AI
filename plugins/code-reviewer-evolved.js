@@ -1,50 +1,98 @@
-import fs 'fs';
-import { ESLint } from 'eslint';
-import { exec } from 'child_process';
+import fs from 'fs';
+import path from 'path';
+
+const REVIEWABLE_EXTENSIONS = /\.(cjs|css|go|html|java|js|json|jsx|mjs|py|rs|ts|tsx)$/i;
+
+function extractPath(userInput = '', context = {}) {
+    if (context?.path) {
+        return path.resolve(context.path);
+    }
+
+    const quoted = userInput.match(/["']([^"']+\.[A-Za-z0-9]+)["']/);
+    if (quoted) {
+        return path.resolve(quoted[1]);
+    }
+
+    const direct = userInput.match(/([A-Za-z]:\\[^\s'"]+|\.{0,2}[\\/][^\s'"]+|[^\s'"]+\.[A-Za-z0-9]+)/);
+    if (direct) {
+        return path.resolve(direct[1]);
+    }
+
+    return null;
+}
+
+function reviewSource(source) {
+    const findings = [];
+    const lines = source.split(/\r?\n/);
+
+    lines.forEach((line, index) => {
+        const lineNumber = index + 1;
+
+        if (line.length > 140) {
+            findings.push(`Line ${lineNumber}: exceeds 140 characters.`);
+        }
+        if (/\bvar\b/.test(line)) {
+            findings.push(`Line ${lineNumber}: replace "var" with "const" or "let".`);
+        }
+        if (/console\.log\(/.test(line)) {
+            findings.push(`Line ${lineNumber}: remove debug logging before shipping.`);
+        }
+        if (/\bdebugger\b/.test(line)) {
+            findings.push(`Line ${lineNumber}: debugger statement left in code.`);
+        }
+        if (/TODO|FIXME/i.test(line)) {
+            findings.push(`Line ${lineNumber}: unresolved TODO/FIXME marker.`);
+        }
+        if (/catch\s*\([^)]*\)\s*{\s*}/.test(line)) {
+            findings.push(`Line ${lineNumber}: empty catch block hides failures.`);
+        }
+    });
+
+    return findings;
+}
 
 const plugin = {
     name: 'code-reviewer',
-    version: '1.0.0',
-    description: 'Review and improve code quality with suggestions. This plugin uses ESLint to check code quality. To use this plugin, you need to have ESLint installed globally or locally in your project.',
-    
+    version: '1.1.0',
+    description: 'Performs a lightweight code review over a local file.',
+
     async initialize() {
         console.log('[code-reviewer] Plugin online');
     },
-    
+
     canHandle(intent, userInput) {
-        const keywords = ['review code', 'check code quality', 'improve code'];
-        return keywords.some(k => userInput.toLowerCase().includes(k));
+        return /\b(review code|check code quality|improve code|review file)\b/i.test(userInput);
     },
-    
-    async handle(intent, userInput, context) {
-        if (context.path) {
-            try {
-                const eslint = new ESLint({
-                    fix: false,
-                    ignore: false,
-                    cache: false,
-                    cacheLocation: './.eslintcache',
-                });
 
-                const results = await eslint.lint([context.path]);
+    async handle(intent, userInput, context = {}) {
+        const targetPath = extractPath(userInput, context);
+        if (!targetPath) {
+            return { success: false, message: 'Provide a file path to review.' };
+        }
 
-                const messages = results[0].messages;
+        if (!REVIEWABLE_EXTENSIONS.test(targetPath)) {
+            return { success: false, message: 'That file type is not supported for review.' };
+        }
 
-                if (messages.length > 0) {
-                    const suggestions = messages.map(message => {
-                        return `${message.message} at line ${message.line}, column ${message.column}`;
-                    });
+        try {
+            const source = await fs.promises.readFile(targetPath, 'utf8');
+            const findings = reviewSource(source);
 
-                    return { success: true, message: suggestions.join('\n') };
-                } else {
-                    return { success: true, message: 'No issues found in the code' };
-                }
-            } catch (error) {
-                return { success: false, message: 'Error reviewing code: ' + error.message };
+            if (!findings.length) {
+                return {
+                    success: true,
+                    message: `No obvious issues found in ${path.basename(targetPath)}.`
+                };
             }
-        } else {
-            return { success: false, message: 'Please provide a file path to review' };
+
+            return {
+                success: true,
+                message: findings.slice(0, 12).join('\n')
+            };
+        } catch (error) {
+            return { success: false, message: `Error reviewing code: ${error.message}` };
         }
     }
 };
+
 export default plugin;

@@ -17,6 +17,8 @@ import ContextManager from "./lib/context-manager.mjs";
 import IntentRecognizer from "./lib/intent-recognizer.mjs";
 import AIHandler from "./lib/ai-handler.mjs";
 import SocketManager from "./lib/socket-manager.mjs";
+import AutonomyEngine from "./lib/autonomy-engine.mjs";
+import * as systemTools from "./lib/system-tools.mjs";
 
 // Advanced AI Systems
 import ThinkingEngine from "./lib/thinking-engine.mjs";
@@ -76,8 +78,9 @@ const aiHandler = new AIHandler({
 });
 
 contextManager.setAIHandler(aiHandler);
+const autonomyEngine = new AutonomyEngine(aiHandler, pluginLoader);
 
-const socketManager = new SocketManager(httpServer, contextManager, pluginLoader, aiHandler, intentRecognizer);
+const socketManager = new SocketManager(httpServer, contextManager, pluginLoader, aiHandler, intentRecognizer, autonomyEngine, systemTools);
 
 const consciousness = new Consciousness();
 const internetIntelligence = new InternetIntelligence();
@@ -98,6 +101,8 @@ global.sentinalHealing = selfHealingEngine;
 global.sentinalEmpathy = empathicVision;
 global.sentinalMemory = longTermMemory;
 global.sentinalFeelings = feelingsModule;
+global.sentinalAutonomy = autonomyEngine;
+global.sentinalSystemTools = systemTools;
 
 // ─── MIDDLEWARE ───────────────────────────────────────────────────────────────
 app.use(cors());
@@ -123,6 +128,7 @@ app.get("/api/health", async (req, res) => {
         plugins: pluginLoader.getAllPlugins().length,
         consciousness: consciousness.getSnapshot(),
         feelings: feelingsModule.getDisplaySummary(),
+        autonomy: autonomyEngine.getStatus(),
         timestamp: new Date().toISOString()
     });
 });
@@ -148,7 +154,13 @@ app.post("/api/chat", async (req, res) => {
         }
 
         if (intentAnalysis.intent !== 'conversation.general' && intentAnalysis.intent !== 'system.foul_mode') {
-            const pluginResponse = await pluginLoader.handleIntent(intentAnalysis.intent, userInput, { sessionId });
+            const pluginResponse = await pluginLoader.handleIntent(intentAnalysis.intent, userInput, {
+                sessionId,
+                aiHandler,
+                pluginLoader,
+                systemTools,
+                autonomyEngine
+            });
             if (pluginResponse?.success) {
                 contextManager.addMessage(sessionId, "assistant", pluginResponse.message);
                 return res.json({ ok: true, reply: pluginResponse.message, data: pluginResponse.data });
@@ -170,6 +182,27 @@ app.post("/api/chat", async (req, res) => {
         };
         const systemPrompt = aiHandler.buildSystemPrompt(ctx);
         const history = contextManager.getFormattedHistory(sessionId);
+
+        const autonomousResult = await autonomyEngine.handleRequest({
+            userInput,
+            sessionId,
+            history,
+            systemPrompt,
+            intentAnalysis
+        });
+        if (autonomousResult?.handled) {
+            contextManager.addMessage(sessionId, "assistant", autonomousResult.reply);
+            consciousness.onInteraction('autonomy', { userInput, reply: autonomousResult.reply });
+            longTermMemory.extractFacts(userInput, autonomousResult.reply);
+            return res.json({
+                ok: true,
+                reply: autonomousResult.reply,
+                autonomy: {
+                    plan: autonomousResult.plan,
+                    observations: autonomousResult.observations
+                }
+            });
+        }
 
         await aiHandler.generateResponse(
             [{ role: "system", content: systemPrompt }, ...history],

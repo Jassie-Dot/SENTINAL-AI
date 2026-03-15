@@ -1,96 +1,132 @@
 import fs from 'fs';
-import { v4 as uuidv4 } from 'uuid';
-import { createClient } from 'redis';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const DATA_PATH = path.join(__dirname, '..', 'data', 'knowledge-graph.json');
+
+function ensureEntity(graph, entityName) {
+    if (!graph[entityName]) {
+        graph[entityName] = {
+            name: entityName,
+            relationships: []
+        };
+    }
+
+    return graph[entityName];
+}
+
+function normalizeName(value = '') {
+    return value.trim().toLowerCase();
+}
+
+function parseBuildInput(userInput = '') {
+    const entitiesMatch = userInput.match(/entities?\s*:\s*([^;]+)/i);
+    const relationshipsMatch = userInput.match(/relationships?\s*:\s*([^;]+)/i);
+
+    const entities = entitiesMatch
+        ? entitiesMatch[1].split(',').map(item => normalizeName(item)).filter(Boolean)
+        : [];
+
+    const relationships = relationshipsMatch
+        ? relationshipsMatch[1]
+            .split(',')
+            .map(item => item.trim())
+            .map(item => item.split(/->|-|:/).map(part => normalizeName(part)).filter(Boolean))
+            .filter(parts => parts.length >= 2)
+            .map(([from, to]) => ({ from, to }))
+        : [];
+
+    if (!entities.length && !relationships.length) {
+        const simpleMatch = userInput.match(/([a-z0-9_ ]+)\s+(knows|likes|works with|belongs to)\s+([a-z0-9_ ]+)/i);
+        if (simpleMatch) {
+            return {
+                entities: [normalizeName(simpleMatch[1]), normalizeName(simpleMatch[3])],
+                relationships: [{ from: normalizeName(simpleMatch[1]), to: normalizeName(simpleMatch[3]) }]
+            };
+        }
+    }
+
+    return { entities, relationships };
+}
 
 const plugin = {
     name: 'knowledge-graph-builder',
-    version: '1.0.0',
-    description: 'Knowledge graph builder plugin would enable me to create a comprehensive and dynamic graph of entities, relationships, and, allowing for more sophisticated reasoning, inference, and decision-making capabilities. This would be particularly useful in applications such as question answering, natural language, and expert systems, where the ability to represent and reason about complex knowledge is crucial. By integrating a knowledge graph builder, I would be able to better understand the context and relationships between different pieces of information, making me more intelligent and helpful in a wide range of tasks and applications.',
-    
+    version: '1.1.0',
+    description: 'Builds and queries a lightweight knowledge graph stored on disk.',
+
     async initialize() {
         console.log('[knowledge-graph-builder] Plugin online');
-        this.redisClient = createClient({
-            socket: {
-                port: process.env.REDIS_PORT,
-                host: process.env.REDIS_HOST,
-            },
-            password: process.env.REDIS_PASSWORD,
-        });
-        await this.redisClient.connect();
+        await fs.promises.mkdir(path.dirname(DATA_PATH), { recursive: true });
+        this.graph = {};
+
+        if (fs.existsSync(DATA_PATH)) {
+            const saved = await fs.promises.readFile(DATA_PATH, 'utf8');
+            this.graph = JSON.parse(saved);
+        }
     },
-    
+
     canHandle(intent, userInput) {
-        const keywords = ['build', 'graph', 'knowledge', 'entity', 'relationship'];
-        return keywords.some(k => userInput.toLowerCase().includes(k));
-    },
-    
-    async handle(intent, userInput, context) {
-        if (!context.knowledgeGraph) {
-            context.knowledgeGraph = {};
-        }
-
-        if (intent === 'build') {
-            const entities = userInput.match(/(?:entity|entities)\s*:\s*([^\s]+)/g);
-            const relationships = userInput.match(/(?:relationship|relationships)\s*:\s*([^\s]+)/g);
-
-            if (entities && relationships) {
-                entities.forEach(entity => {
-                    const entityName = entity.replace('entity: ', '').replace('entities: ', '');
-                    context.knowledgeGraph[entityName] = {
-                        id: uuidv4(),
-                        name: entityName,
-                        relationships: [],
-                    };
-                });
-
-                relationships.forEach(relationship => {
-                    const relationshipName = relationship.replace('relationship: ', '').replace('relationships: ', '');
-                    const [entity1, entity2] = relationshipName.split('-');
-                    if (context.knowledgeGraph[entity1] && context.knowledgeGraph[entity2]) {
-                        context.knowledgeGraph[entity1].relationships.push(context.knowledgeGraph[entity2].id);
-                        context.knowledgeGraph[entity2].relationships.push(context.knowledgeGraph[entity1].id);
-                    }
-                });
-
-                await this.redisClient.set('knowledgeGraph', JSON.stringify(context.knowledgeGraph));
-                return { success: true, message: 'Knowledge graph built successfully' };
-            } else {
-                return { success: false, message: 'Invalid input. Please provide entities and relationships' };
-            }
-        } else if (intent === 'query') {
-            const query = userInput.match(/(?:query)\s*:\s*([^\s]+)/g);
-            if (query) {
-                const queryString = query[0].replace('query: ', '');
-                const graph = await this.redisClient.get('knowledgeGraph');
-                if (graph) {
-                    const knowledgeGraph = JSON.parse(graph);
-                    const result = this.queryGraph(knowledgeGraph, queryString);
-                    return { success: true, message: result };
-                } else {
-                    return { success: false, message: 'Knowledge graph not found' };
-                }
-            } else {
-                return { success: false, message: 'Invalid input. Please provide a query' };
-            }
-        } else {
-            return { success: false, message: 'Invalid intent' };
-        }
+        return /\b(knowledge graph|entity|relationship|graph query|graph build)\b/i.test(userInput);
     },
 
-    queryGraph(graph, query) {
-        const entities = Object.keys(graph);
-        const result = [];
-        entities.forEach(entity => {
-            if (graph[entity].name.includes(query)) {
-                result.push(graph[entity].name);
+    async handle(intent, userInput) {
+        if (!this.graph) {
+            this.graph = {};
+        }
+
+        const isQuery = /\b(query|find|lookup|search)\b/i.test(userInput);
+        if (isQuery) {
+            const query = userInput.replace(/.*?\b(query|find|lookup|search)\b[:\s]*/i, '').trim().toLowerCase();
+            if (!query) {
+                return { success: false, message: 'Provide a term to query.' };
             }
-            graph[entity].relationships.forEach(relationship => {
-                if (graph[relationship].name.includes(query)) {
-                    result.push(graph[relationship].name);
-                }
-            });
+
+            const matches = Object.values(this.graph).filter(entity =>
+                entity.name.includes(query) ||
+                entity.relationships.some(relationship => relationship.to.includes(query))
+            );
+
+            if (!matches.length) {
+                return { success: false, message: `No graph entries matched "${query}".` };
+            }
+
+            const summary = matches.map(entity => {
+                const relations = entity.relationships.map(relationship => relationship.to).join(', ') || 'none';
+                return `${entity.name}: ${relations}`;
+            }).join('\n');
+
+            return { success: true, message: summary };
+        }
+
+        const { entities, relationships } = parseBuildInput(userInput);
+        if (!entities.length && !relationships.length) {
+            return {
+                success: false,
+                message: 'Use "entities: a, b; relationships: a-b" to build the graph.'
+            };
+        }
+
+        entities.forEach(entityName => {
+            ensureEntity(this.graph, entityName);
         });
-        return result.join(', ');
+
+        relationships.forEach(({ from, to }) => {
+            const source = ensureEntity(this.graph, from);
+            ensureEntity(this.graph, to);
+
+            if (!source.relationships.some(relationship => relationship.to === to)) {
+                source.relationships.push({ to });
+            }
+        });
+
+        await fs.promises.writeFile(DATA_PATH, JSON.stringify(this.graph, null, 2));
+
+        return {
+            success: true,
+            message: `Knowledge graph updated with ${entities.length} entities and ${relationships.length} relationships.`
+        };
     }
 };
+
 export default plugin;
