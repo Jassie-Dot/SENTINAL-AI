@@ -5,12 +5,20 @@
 
 import fs from 'fs';
 import path from 'path';
-import { exec } from 'child_process';
-import { promisify } from 'util';
 import fetch from 'node-fetch';
-import vm from 'vm';
 
-const execAsync = promisify(exec);
+const MAX_PLUGIN_BYTES = 50_000;
+const BLOCKED_SNIPPETS = [
+    // Prevent generated code from embedding arbitrary command execution primitives
+    'child_process',
+    'exec(',
+    'spawn(',
+    'powershell',
+    'cmd.exe',
+    'shutdown',
+    'taskkill',
+    'rm -rf'
+];
 
 const plugin = {
     name: 'Self-Evolution',
@@ -64,37 +72,33 @@ const plugin = {
             status("VALIDATING SYNTAX");
             this.validateSyntax(code);
 
-            // 3. Analyze Dependencies
+            // 3. Analyze Dependencies (report only; do not auto-install)
             status("ANALYZING DEPENDENCIES");
             const dependencies = this.extractDependencies(code);
 
-            // 4. Install Dependencies
-            if (dependencies.length > 0) {
-                notify(`📦 **Dependencies Detected**\nInstalling: \`${dependencies.join(', ')}\`...`);
-                status(`INSTALLING: ${dependencies.join(', ')}`);
-                await this.npmInstall(dependencies);
-            }
-
-            // 5. Save Plugin
-            status("COMPILING MODULE");
+            // 4. Save plugin as a staged candidate (no auto hot-load)
+            status("STAGING MODULE");
             const filename = `${feature.toLowerCase().replace(/[^a-z0-9]/g, '-')}-plugin.js`;
             const pluginDir = path.join(process.cwd(), 'plugins');
             const filePath = path.join(pluginDir, filename);
 
-            console.log(`[EVOLUTION] Writing to ${filename}...`);
+            console.log(`[EVOLUTION] Writing staged plugin to ${filename}...`);
             fs.writeFileSync(filePath, code);
 
-            status("DEPLOYMENT COMPLETE");
+            status("AWAITING HUMAN REVIEW");
 
             return {
                 success: true,
-                message: `### ✅ Integration Complete\n\n` +
+                message: `### ✅ Integration Candidate Ready\n\n` +
                     `**Module Name:** ${feature}\n` +
-                    `**Status:** Operational (Hot-Reloaded)\n` +
+                    `**Status:** Staged (NOT auto-loaded)\n` +
                     `**Source:** \`plugins/${filename}\`\n` +
-                    `**Dependencies:** ${dependencies.length > 0 ? `\`${dependencies.join(', ')}\`` : 'None'}\n\n` +
-                    `> [!TIP]\n` +
-                    `> I have auto-loaded the new module. You can use it immediately.`
+                    `**Dependencies (not installed):** ${dependencies.length > 0 ? `\`${dependencies.join(', ')}\`` : 'None'}\n\n` +
+                    `> [!REVIEW]\n` +
+                    `> 1. Open the file in your editor.\n` +
+                    `> 2. Manually install any dependencies you accept.\n` +
+                    `> 3. Restart SENTINAL to load it.`,
+                data: { filename, dependencies }
             };
 
         } catch (error) {
@@ -207,19 +211,20 @@ const plugin = {
     },
 
     /**
-     * Validate JS syntax using VM
+     * Validate JS structure + basic safety constraints.
+     * (This is not a full sandbox. It is a defensive gate for staged plugins.)
      */
     validateSyntax(code) {
         try {
-            // New Script(code) parses the code and throws SyntaxError if invalid
-            // We strip 'import' statements for this check since VM doesn't support them well without context
-            // but for basic syntax checking (braces, parens), it's a decent sanity check.
-            // A better approach for full modules is hard in pure node without tools, 
-            // but we can check if it parses as a script at least.
+            if (Buffer.byteLength(String(code || ''), 'utf8') > MAX_PLUGIN_BYTES) {
+                throw new Error(`Plugin exceeds size limit (${MAX_PLUGIN_BYTES} bytes).`);
+            }
 
-            // Actually, vm.Script doesn't support ES modules fully. 
-            // We'll rely on a basic try/catch around construction, but ES module syntax might fail in Script.
-            // Alternative: use a regex to ensure basic structure match
+            const lowered = String(code || '').toLowerCase();
+            const blocked = BLOCKED_SNIPPETS.find(s => lowered.includes(String(s).toLowerCase()));
+            if (blocked) {
+                throw new Error(`Generated plugin contains blocked snippet: ${blocked}`);
+            }
 
             if (!code.includes('export default plugin')) {
                 throw new Error("Missing 'export default plugin' statement.");
@@ -249,20 +254,7 @@ const plugin = {
         return [...new Set(deps)];
     },
 
-    async npmInstall(packages) {
-        if (!packages || packages.length === 0) return;
-
-        // Use --no-audit and --no-fund for speed
-        const cmd = `npm install ${packages.join(' ')} --no-audit --no-fund --save --json`;
-        console.log(`[EVOLUTION] Executing: ${cmd}`);
-
-        try {
-            await execAsync(cmd, { cwd: process.cwd() });
-        } catch (e) {
-            console.warn(`[EVOLUTION] NPM Install warning (non-fatal): ${e.message}`);
-            // We continue even if install warns, as long as module exists
-        }
-    }
+    // Dependency installation must be done manually in production.
 };
 
 export default plugin;

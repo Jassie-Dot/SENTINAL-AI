@@ -1,929 +1,397 @@
 /**
- * ╔═══════════════════════════════════════════════════════════════════╗
- * ║   SENTINAL ARC REACTOR — PREMIUM CORE v7.0                       ║
- * ║   True 3D · Orbital Physics · Sparse Particles · Clean Depth   ║
- * ╚═══════════════════════════════════════════════════════════════════╝
+ * SENTINAL PRO - Quantum Reactor 3D Core
+ * Three.js powered toroidal plasma reactor with holographic rings,
+ * particle aurora, energy field, and state reactivity.
  */
 
 class SentinalCore3D {
-    constructor(containerId) {
-        this.el = document.getElementById(containerId);
-        if (!this.el || !window.THREE) { console.error('[Core] Missing el or Three.js'); return; }
+    constructor(container, options = {}) {
+        this.container = typeof container === 'string' ? document.getElementById(container) : container;
+        if (!this.container) return;
 
-        this.clock = new THREE.Clock();
-        this.t = 0;
-        this.state = 'idle';
-        this.audio = 0;
-        this.audioTgt = 0;
-        this.mouse = { x: 0, y: 0 };
-        this.currQ = new THREE.Quaternion();
-        this.tgtQ = new THREE.Quaternion();
-        this.emotionColor = new THREE.Color(0x00eeff);
-        this.stateColor = new THREE.Color(0x00eeff);
-        this.spectralColor = new THREE.Color(0x00eeff);
-        this._hsl = { h: 0, s: 0, l: 0 };
-        this._tmpV = new THREE.Vector3();
-        this._prevState = this.state;
-        this.thunder = 0;
-        this.thunderPhase = Math.random() * Math.PI * 2;
-        this.statePalette = {
-            idle: new THREE.Color(0x00eeff),
-            listening: new THREE.Color(0x4dffd0),
-            processing: new THREE.Color(0xffd779),
-            speaking: new THREE.Color(0xffad78),
-        };
+        this.width = this.container.clientWidth || 400;
+        this.height = this.container.clientHeight || 400;
+        this.state = 'idle'; // idle, listening, processing, speaking
+        this.emotionColor = new THREE.Color(0x00eaff);
+        this.targetColor = new THREE.Color(0x00eaff);
+        this.time = 0;
+        this.disposed = false;
+        this.mouseX = 0;
+        this.mouseY = 0;
 
-        // -- PALETTE --
-        this.P = {
-            cyan: new THREE.Color(0x00eeff),
-            brightCyan: new THREE.Color(0x88ffff),
-            deepCyan: new THREE.Color(0x006688),
-            white: new THREE.Color(0xffffff),
-            teal: new THREE.Color(0x00ccbb),
-            dimCyan: new THREE.Color(0x002233),
-        };
+        this._initScene();
+        this._createCore();
+        this._createParticles();
+        this._createLightning();
+        this._animate();
 
-        this._build();
+        // Mouse parallax
+        this.container.addEventListener('mousemove', (e) => {
+            const rect = this.container.getBoundingClientRect();
+            this.mouseX = ((e.clientX - rect.left) / rect.width - 0.5) * 2;
+            this.mouseY = ((e.clientY - rect.top) / rect.height - 0.5) * 2;
+        });
+
+        // Resize
+        this._resizeObserver = new ResizeObserver(() => this._onResize());
+        this._resizeObserver.observe(this.container);
     }
 
-    // ─────────────────────────────────────────────────────────
-    _build() {
-        this._scene();
-        this._glowTex();
-        this._innerCore();
-        this._lightning();
-        // Particles disabled for a cleaner, more premium core silhouette.
-        this._bind();
-        this.animate = this.animate.bind(this);
-        this.animate();
-        console.log('[SentinalCore v7.0] ONLINE');
-    }
-
-    // ─────────────────────────────────────────────────────────
-    _scene() {
+    _initScene() {
         this.scene = new THREE.Scene();
 
-        // No fog — dark transparent background
-        this.camera = new THREE.PerspectiveCamera(50, 1, 0.1, 300);
-        this.camera.position.set(0, 0, 8.0);
+        this.camera = new THREE.PerspectiveCamera(45, this.width / this.height, 0.1, 100);
+        this.camera.position.set(0, 0, 5);
 
-        this.ren = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: 'high-performance' });
-        this.ren.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        this.ren.setClearColor(0x000000, 0);
-        if (THREE.sRGBEncoding) this.ren.outputEncoding = THREE.sRGBEncoding;
-        if (THREE.ACESFilmicToneMapping !== undefined) {
-            this.ren.toneMapping = THREE.ACESFilmicToneMapping;
-            // Lower exposure to avoid "blown out" highlights in the core.
-            this.ren.toneMappingExposure = 0.64;
-        }
+        this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        this.renderer.setSize(this.width, this.height);
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        this.renderer.toneMappingExposure = 1.2;
+        this.container.appendChild(this.renderer.domElement);
 
-        const w = this.el.clientWidth || 300;
-        const h = this.el.clientHeight || 300;
-        this.ren.setSize(w, h);
+        // Ambient light
+        const ambient = new THREE.AmbientLight(0x112244, 0.5);
+        this.scene.add(ambient);
 
-        this.el.innerHTML = '';
-        this.el.appendChild(this.ren.domElement);
-        Object.assign(this.ren.domElement.style, { position: 'absolute', top: 0, left: 0, pointerEvents: 'none' });
-        if (getComputedStyle(this.el).position === 'static') this.el.style.position = 'relative';
-
-        // Lights
-        this.ptLight = new THREE.PointLight(0x00eeff, 5, 28);
-        this.ptLight.position.set(0, 0, 1.5);
-        this.scene.add(this.ptLight);
-        // Accent warm-teal rim from above
-        const fill = new THREE.PointLight(0x00aacc, 2.4, 30);
-        fill.position.set(4, 5, 6);
-        this.scene.add(fill);
-        // Blue-purple counter-rim
-        const fill2 = new THREE.PointLight(0x0033aa, 1.2, 20);
-        fill2.position.set(-4, -3, 3);
-        this.scene.add(fill2);
-        // Warm accent makes highlights feel more premium than pure cyan-only lighting.
-        this.warmLight = new THREE.PointLight(0xffc07a, 1.2, 26);
-        this.warmLight.position.set(-3.5, 2.2, 4.8);
-        this.scene.add(this.warmLight);
-        this.scene.add(new THREE.AmbientLight(0x001022, 0.85));
+        // Point light at core
+        this.coreLight = new THREE.PointLight(0x00eaff, 2, 10);
+        this.scene.add(this.coreLight);
     }
 
-    // ─────────────────────────────────────────────────────────
-    _glowTex() {
-        const cv = document.createElement('canvas');
-        cv.width = cv.height = 64;
-        const cx = cv.getContext('2d');
-        const g = cx.createRadialGradient(32, 32, 0, 32, 32, 32);
-        g.addColorStop(0.00, 'rgba(255,255,255,0.92)');
-        g.addColorStop(0.10, 'rgba(180,255,255,0.82)');
-        g.addColorStop(0.35, 'rgba(0,220,255,0.50)');
-        g.addColorStop(0.70, 'rgba(0,100,180,0.15)');
-        g.addColorStop(1.00, 'rgba(0,0,0,0)');
-        cx.fillStyle = g;
-        cx.fillRect(0, 0, 64, 64);
-        this.glowTex = new THREE.CanvasTexture(cv);
-
-        // Ring + sweep textures for additional HUD-style FX.
-        const rv = document.createElement('canvas');
-        rv.width = rv.height = 128;
-        const rx = rv.getContext('2d');
-        rx.translate(64, 64);
-        const rg = rx.createRadialGradient(0, 0, 0, 0, 0, 64);
-        rg.addColorStop(0.00, 'rgba(0,0,0,0)');
-        rg.addColorStop(0.56, 'rgba(0,0,0,0)');
-        rg.addColorStop(0.62, 'rgba(255,255,255,0.95)');
-        rg.addColorStop(0.72, 'rgba(0,220,255,0.30)');
-        rg.addColorStop(1.00, 'rgba(0,0,0,0)');
-        rx.fillStyle = rg;
-        rx.beginPath();
-        rx.arc(0, 0, 64, 0, Math.PI * 2);
-        rx.fill();
-        this.ringTex = new THREE.CanvasTexture(rv);
-
-        const sv = document.createElement('canvas');
-        sv.width = sv.height = 128;
-        const sx = sv.getContext('2d');
-        sx.translate(64, 64);
-        const sg = sx.createRadialGradient(0, 0, 0, 0, 0, 64);
-        sg.addColorStop(0.00, 'rgba(255,255,255,0)');
-        sg.addColorStop(0.50, 'rgba(255,255,255,0.12)');
-        sg.addColorStop(1.00, 'rgba(255,255,255,0)');
-        sx.fillStyle = sg;
-        sx.beginPath();
-        sx.moveTo(0, 0);
-        sx.arc(0, 0, 64, -0.28, 0.28);
-        sx.closePath();
-        sx.fill();
-        sx.strokeStyle = 'rgba(120,245,255,0.35)';
-        sx.lineWidth = 2;
-        sx.beginPath();
-        sx.arc(0, 0, 52, -0.28, 0.28);
-        sx.stroke();
-        this.sweepTex = new THREE.CanvasTexture(sv);
-    }
-
-    // ─────────────────────────────────────────────────────────
-    _innerCore() {
-        this.coreGrp = new THREE.Group();
-        // New look: aggressive prismatic nucleus.
-        this.coreMat = new THREE.ShaderMaterial({
-            uniforms: {
-                uTime: { value: 0 },
-                uColor: { value: new THREE.Color(0x9ef8ff) },
-                uPulse: { value: 0.70 },
-            },
-            vertexShader: `
-        varying vec3 vPos;
-        varying vec3 vNormal;
-        void main() {
-          vPos = position;
-          vNormal = normalize(normalMatrix * normal);
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-        }`,
-            fragmentShader: `
-        uniform float uTime;
-        uniform vec3 uColor;
-        uniform float uPulse;
-        varying vec3 vPos;
-        varying vec3 vNormal;
-        void main() {
-          float r = length(vPos);
-          float shell = smoothstep(0.55, 0.05, r);
-          float lattice = abs(sin((vPos.x * 1.4 + vPos.y * 1.1 + vPos.z) * 11.0 + uTime * 2.6));
-          lattice = smoothstep(0.25, 0.95, lattice);
-          float bands = 0.5 + 0.5 * sin(uTime * 3.2 + r * 18.0);
-          float fres = pow(1.0 - max(0.0, dot(normalize(vNormal), vec3(0.0, 0.0, 1.0))), 1.9);
-          float a = (0.18 + lattice * 0.30 + bands * 0.14 + fres * 0.30) * uPulse * shell;
-          vec3 col = mix(uColor, vec3(1.0), 0.26 + lattice * 0.30 + fres * 0.28);
-          gl_FragColor = vec4(col, a);
-        }`,
+    _createCore() {
+        // Central Icosahedron Core (Highly detailed geometric plasma)
+        const innerGeo = new THREE.IcosahedronGeometry(0.3, 2);
+        const innerMat = new THREE.MeshStandardMaterial({
+            color: 0x00eaff,
+            emissive: 0x00eaff,
+            emissiveIntensity: 0.8,
+            wireframe: false,
             transparent: true,
-            blending: THREE.AdditiveBlending,
-            depthWrite: false,
+            opacity: 0.95
         });
+        this.core = new THREE.Mesh(innerGeo, innerMat);
+        this.scene.add(this.core);
 
-        this.coreSphere = new THREE.Mesh(new THREE.SphereGeometry(0.50, 64, 64), this.coreMat);
-        this.coreGrp.add(this.coreSphere);
-
-        this.coreCrystal = new THREE.Mesh(
-            new THREE.OctahedronGeometry(0.30, 2),
-            new THREE.MeshStandardMaterial({
-                color: 0xc7fbff,
-                emissive: 0x3ae6ff,
-                emissiveIntensity: 1.15,
-                metalness: 0.25,
-                roughness: 0.12,
-                transparent: true,
-                opacity: 0.88,
-                flatShading: true,
-                depthWrite: false,
-            })
-        );
-        this.coreGrp.add(this.coreCrystal);
-
-        this.coreWire = new THREE.LineSegments(
-            new THREE.WireframeGeometry(new THREE.IcosahedronGeometry(0.74, 0)),
-            new THREE.LineBasicMaterial({
-                color: 0x8fefff,
-                transparent: true,
-                opacity: 0.22,
-                blending: THREE.AdditiveBlending,
-            })
-        );
-        this.coreGrp.add(this.coreWire);
-
-        // Fresnel "glass" shell adds depth and premium rim-light without postprocessing.
-        const fresnelMat = new THREE.ShaderMaterial({
-            uniforms: {
-                uTime: { value: 0 },
-                uColor: { value: new THREE.Color(0x00eeff) },
-                uIntensity: { value: 0.12 },
-                uPower: { value: 2.2 },
-            },
-            vertexShader: `
-        varying float vF;
-        varying vec2 vUv;
-        uniform float uPower;
-        void main(){
-          vUv = uv;
-          vec3 n = normalize(normalMatrix * normal);
-          vec3 v = normalize(-(modelViewMatrix * vec4(position, 1.0)).xyz);
-          vF = pow(1.0 - max(0.0, dot(n, v)), uPower);
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-        }`,
-            fragmentShader: `
-        uniform float uTime;
-        uniform vec3 uColor;
-        uniform float uIntensity;
-        varying float vF;
-        varying vec2 vUv;
-        void main(){
-          float scan = 0.6 + 0.4*sin((vUv.y + uTime*0.18) * 18.0);
-          float a = vF * uIntensity * (0.85 + 0.15*scan);
-          gl_FragColor = vec4(uColor, a);
-        }`,
+        // Wireframe geometric shell
+        const wireGeo = new THREE.IcosahedronGeometry(0.45, 1);
+        const wireMat = new THREE.MeshBasicMaterial({
+            color: 0xa855f7,
+            wireframe: true,
             transparent: true,
-            blending: THREE.AdditiveBlending,
-            depthWrite: false,
+            opacity: 0.4
         });
+        this.wireCore = new THREE.Mesh(wireGeo, wireMat);
+        this.scene.add(this.wireCore);
 
-        this.fresnelShell = new THREE.Mesh(new THREE.SphereGeometry(1.05, 48, 48), fresnelMat);
-        this.fresnelShell.material.side = THREE.FrontSide;
-        this.fresnelShell.renderOrder = 5;
-        this.fresnelMat = fresnelMat;
-        this.coreGrp.add(this.fresnelShell);
-
-        this.scene.add(this.coreGrp);
-    }
-
-    _haloLayers() {
-        this.haloGrp = new THREE.Group();
-
-        this.crownRing = new THREE.Mesh(
-            new THREE.TorusGeometry(1.15, 0.012, 8, 160),
-            new THREE.MeshBasicMaterial({
-                color: 0x86fbff,
-                transparent: true,
-                opacity: 0.24,
-                blending: THREE.AdditiveBlending,
-                side: THREE.DoubleSide,
-            })
-        );
-        this.crownRing.rotation.x = Math.PI / 2;
-        this.haloGrp.add(this.crownRing);
-
-        this.scene.add(this.haloGrp);
-    }
-
-    // ─────────────────────────────────────────────────────────
-    _fxLayers() {
-        this.fxGrp = new THREE.Group();
-
-        this.scanSweep = new THREE.Sprite(
-            new THREE.SpriteMaterial({
-                map: this.sweepTex,
-                color: 0x7af5ff,
-                transparent: true,
-                opacity: 0.08,
-                blending: THREE.AdditiveBlending,
-                depthWrite: false,
-            })
-        );
-        this.scanSweep.scale.set(4.8, 4.8, 1);
-        this.fxGrp.add(this.scanSweep);
-
-        this.coreSpark = new THREE.Sprite(
-            new THREE.SpriteMaterial({
-                map: this.glowTex,
-                color: 0xffffff,
-                transparent: true,
-                opacity: 0.0,
-                blending: THREE.AdditiveBlending,
-                depthWrite: false,
-            })
-        );
-        this.coreSpark.scale.set(1.1, 1.1, 1);
-        this.coreSpark.userData = { active: false, life: 0 };
-        this.fxGrp.add(this.coreSpark);
-
-        this.shockwaves = [];
-        for (let i = 0; i < 5; i++) {
-            const sw = new THREE.Sprite(
-                new THREE.SpriteMaterial({
-                    map: this.ringTex,
-                    color: 0xffffff,
-                    transparent: true,
-                    opacity: 0.0,
-                    blending: THREE.AdditiveBlending,
-                    depthWrite: false,
-                })
-            );
-            sw.scale.set(1, 1, 1);
-            sw.material.rotation = Math.random() * Math.PI * 2;
-            sw.userData = { active: false, life: 0, speed: 0.8 + i * 0.1, intensity: 1 };
-            this.shockwaves.push(sw);
-            this.fxGrp.add(sw);
-        }
-
-        // Lens flares removed: they read as a "background plate" behind the rings.
-        this.flares = null;
-
-        this.scene.add(this.fxGrp);
-    }
-
-    _spawnShockwave(intensity = 1) {
-        if (!this.shockwaves || this.shockwaves.length === 0) return;
-
-        const sw = this.shockwaves.find(s => !s.userData.active) || this.shockwaves[0];
-        sw.userData.active = true;
-        sw.userData.life = 0;
-        sw.userData.intensity = Math.max(0.15, Math.min(2.0, intensity));
-        sw.material.opacity = 0.0;
-        sw.material.color.copy(this.P.white).lerp(this.stateColor, 0.72);
-        sw.material.rotation = Math.random() * Math.PI * 2;
-        sw.scale.set(1.15, 1.15, 1);
-
-        if (this.coreSpark) {
-            this.coreSpark.userData.active = true;
-            this.coreSpark.userData.life = 0;
-            this.coreSpark.material.opacity = 0.55 * sw.userData.intensity;
-            const sc = 1.0 + sw.userData.intensity * 0.45;
-            this.coreSpark.scale.set(sc, sc, 1);
-            this.coreSpark.material.color.copy(this.P.white).lerp(this.stateColor, 0.4);
-        }
-    }
-
-    _rings() {
-        this.ringGrp = new THREE.Group();
-        this.rings = [];
-
-        const defs = [
-            // r, tube, segs, opacity, color, axis, speed, scale, rotation
-            [2.12, 0.024, 180, 0.56, 0x7ff3ff, new THREE.Vector3(0, 1, 0), 0.45, [1.04, 0.92, 1.0], [0, 0, 0]],
-            [2.12, 0.018, 180, 0.50, 0x9df9ff, new THREE.Vector3(1, 0, 0), -0.38, [0.94, 1.06, 1.0], [0.08, 0.18, 0]],
-            [2.48, 0.013, 160, 0.36, 0x00c8d6, new THREE.Vector3(0.55, 0.75, 0.2).normalize(), 0.28, [1.06, 0.94, 1.0], [0.22, 0, 0.42]],
-            [1.54, 0.009, 140, 0.30, 0xffd6a6, new THREE.Vector3(-0.6, 0.35, 0.7).normalize(), -0.22, [0.96, 1.04, 1.0], [0.28, -0.18, 0.2]],
-            [2.88, 0.01, 160, 0.24, 0x6bbaff, new THREE.Vector3(0.2, -0.7, 0.6).normalize(), 0.18, [1.08, 0.94, 1.0], [-0.12, 0.26, 0]],
-        ];
-
-        defs.forEach(([r, tube, segs, op, col, ax, spd, scale, rot]) => {
-            const geo = new THREE.TorusGeometry(r, tube, 8, segs);
-            const mat = new THREE.MeshBasicMaterial({
-                color: col,
-                transparent: true,
-                opacity: op,
-                blending: THREE.AdditiveBlending,
-                side: THREE.DoubleSide,
-            });
-            const ring = new THREE.Mesh(geo, mat);
-            ring.rotation.set(rot[0], rot[1], rot[2]);
-            ring.scale.set(scale[0], scale[1], scale[2]);
-            ring.userData = { ax, spd, base: op, baseColor: new THREE.Color(col) };
-            this.rings.push(ring);
-            this.ringGrp.add(ring);
+        // Core glow outer shell
+        const glowGeo = new THREE.SphereGeometry(0.55, 64, 64);
+        const glowMat = new THREE.MeshBasicMaterial({
+            color: 0x00eaff,
+            transparent: true,
+            opacity: 0.15,
+            side: THREE.BackSide,
+            blending: THREE.AdditiveBlending
         });
+        this.coreGlow = new THREE.Mesh(glowGeo, glowMat);
+        this.scene.add(this.coreGlow);
 
-        this.scene.add(this.ringGrp);
+        // Pulsing Energy Halo
+        const haloGeo = new THREE.SphereGeometry(0.9, 64, 64);
+        const haloMat = new THREE.MeshBasicMaterial({
+            color: 0x00eaff,
+            transparent: true,
+            opacity: 0.05,
+            side: THREE.BackSide,
+            blending: THREE.AdditiveBlending
+        });
+        this.halo = new THREE.Mesh(haloGeo, haloMat);
+        this.scene.add(this.halo);
     }
 
-    // ─────────────────────────────────────────────────────────
-    _segments() {
-        this.segGrp = new THREE.Group();
-        this.segs = [];
 
-        // 14 data-segment nodes on the primary equatorial ring
-        const segGeo = new THREE.BoxGeometry(0.06, 0.20, 0.06);
-        for (let i = 0; i < 14; i++) {
-            const a = (i / 14) * Math.PI * 2;
-            const mat = new THREE.MeshBasicMaterial({
-                color: 0x88ffff, transparent: true, opacity: 0.68,
-                blending: THREE.AdditiveBlending
-            });
-            const seg = new THREE.Mesh(segGeo, mat);
-            seg.position.set(Math.cos(a) * 1.90, Math.sin(a) * 1.90, 0);
-            seg.lookAt(0, 0, 0);
-            seg.userData = {
-                baseAngle: a,
-                r: 1.90,
-                spd: 0.55,
-                plane: 'xy',
-                offset: i * 0.4,
-                baseColor: new THREE.Color(0x88ffff),
-            };
-            this.segs.push(seg);
-            this.segGrp.add(seg);
-        }
 
-        // 10 segment nodes on the XZ ring
-        for (let i = 0; i < 10; i++) {
-            const a = (i / 10) * Math.PI * 2;
-            const mat = new THREE.MeshBasicMaterial({
-                color: 0x00eeff, transparent: true, opacity: 0.60,
-                blending: THREE.AdditiveBlending
-            });
-            const seg = new THREE.Mesh(segGeo, mat);
-            seg.position.set(Math.cos(a) * 1.90, 0, Math.sin(a) * 1.90);
-            seg.lookAt(0, 0, 0);
-            seg.userData = {
-                baseAngle: a,
-                r: 1.90,
-                spd: -0.42,
-                plane: 'xz',
-                offset: i * 0.5,
-                baseColor: new THREE.Color(0x00eeff),
-            };
-            this.segs.push(seg);
-            this.segGrp.add(seg);
-        }
+    _createParticles() {
+        const count = 1500; // Extremely dense particle system
+        const positions = new Float32Array(count * 3);
+        const colors = new Float32Array(count * 3);
+        const dynamics = new Float32Array(count * 3); // For swirling math
 
-        this.scene.add(this.segGrp);
-    }
+        const cyan = new THREE.Color(0x00eaff);
+        const purple = new THREE.Color(0xa855f7);
+        const white = new THREE.Color(0xffffff);
 
-    // ─────────────────────────────────────────────────────────
-    // SPARSE INNER PARTICLE CLOUD — 600 points, distinct sparkles
-    _sparseParticles() {
-        const N = 600;
-        const positions = new Float32Array(N * 3);
-        const sizes = new Float32Array(N);
-        const phases = new Float32Array(N);
-
-        for (let i = 0; i < N; i++) {
+        for (let i = 0; i < count; i++) {
+            // Spherical volume distribution with higher density near the rings
             const theta = Math.random() * Math.PI * 2;
-            const phi = Math.acos(2 * Math.random() - 1);
-            // Most between r=1.3 and r=2.6
-            const r = 1.3 + Math.pow(Math.random(), 0.5) * 1.3;
+            const phi = Math.acos((Math.random() * 2) - 1);
+            const r = 0.5 + Math.random() * 2.2;
+
             positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
             positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
             positions[i * 3 + 2] = r * Math.cos(phi);
-            sizes[i] = Math.random() * 3.5 + 1.0;
-            phases[i] = Math.random() * Math.PI * 2;
+
+            // Give each particle custom orbital frequencies
+            dynamics[i * 3] = r; // base radius
+            dynamics[i * 3 + 1] = theta; // base angle
+            dynamics[i * 3 + 2] = phi; // base elevation
+
+            let color;
+            const rand = Math.random();
+            if (rand > 0.4) color = cyan;
+            else if (rand > 0.05) color = purple;
+            else color = white;
+
+            colors[i * 3] = color.r;
+            colors[i * 3 + 1] = color.g;
+            colors[i * 3 + 2] = color.b;
         }
 
         const geo = new THREE.BufferGeometry();
         geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-        geo.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
-        geo.setAttribute('aPhase', new THREE.BufferAttribute(phases, 1));
+        geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        geo.setAttribute('dynamics', new THREE.BufferAttribute(dynamics, 3));
 
-        const mat = new THREE.ShaderMaterial({
-            uniforms: {
-                uTime: { value: 0 },
-                uAudio: { value: 0 },
-                uGlow: { value: this.glowTex },
-                uTint: { value: new THREE.Color(0x00eeff) },
-            },
-            vertexShader: `
-        attribute float aSize;
-        attribute float aPhase;
-        uniform float uTime;
-        uniform float uAudio;
-        varying float vAlpha;
-        void main(){
-          float pulse = 0.85 + 0.15*sin(uTime*2.8 + aPhase) + uAudio*0.3;
-          vec4 mvp = modelViewMatrix * vec4(position, 1.0);
-          vAlpha = 0.12 + 0.28*abs(sin(uTime*1.8 + aPhase));
-          gl_PointSize = aSize * pulse * (60.0 / -mvp.z);
-          gl_Position  = projectionMatrix * mvp;
-        }`,
-            fragmentShader: `
-        uniform sampler2D uGlow;
-        uniform vec3 uTint;
-        varying float vAlpha;
-        void main(){
-          vec4 tex = texture2D(uGlow, gl_PointCoord);
-          if(tex.a < 0.01) discard;
-          // Bright cyan-white sparkle
-          vec3 coreCol = mix(vec3(0.0, 0.92, 1.0), vec3(1.0,1.0,1.0), tex.r);
-          vec3 col = mix(coreCol, uTint, 0.45);
-          gl_FragColor = vec4(col, tex.a * vAlpha);
-        }`,
+        const mat = new THREE.PointsMaterial({
+            size: 0.015,
+            vertexColors: true,
+            transparent: true,
+            opacity: 0.8,
             blending: THREE.AdditiveBlending,
             depthWrite: false,
-            transparent: true,
         });
 
-        this.innerCloud = new THREE.Points(geo, mat);
-        this.innerCloudMat = mat;
-        this.scene.add(this.innerCloud);
+        this.particles = new THREE.Points(geo, mat);
+        this.scene.add(this.particles);
     }
 
-    // ─────────────────────────────────────────────────────────
-    // OUTER DOTS — 400 scattered sparkles further out
-    _outerDots() {
-        const N = 400;
-        const pos = new Float32Array(N * 3);
-        const phases = new Float32Array(N);
-        const sizes = new Float32Array(N);
-
-        for (let i = 0; i < N; i++) {
-            const theta = Math.random() * Math.PI * 2;
-            const phi = Math.acos(2 * Math.random() - 1);
-            const r = 2.7 + Math.random() * 1.8;
-            pos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
-            pos[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
-            pos[i * 3 + 2] = r * Math.cos(phi);
-            sizes[i] = Math.random() * 2.2 + 0.5;
-            phases[i] = Math.random() * Math.PI * 2;
-        }
-
-        const geo = new THREE.BufferGeometry();
-        geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-        geo.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
-        geo.setAttribute('aPhase', new THREE.BufferAttribute(phases, 1));
-
-        const mat = new THREE.ShaderMaterial({
-            uniforms: {
-                uTime: { value: 0 },
-                uAudio: { value: 0 },
-                uGlow: { value: this.glowTex },
-                uTint: { value: new THREE.Color(0x00eeff) },
-            },
-            vertexShader: `
-        attribute float aSize;
-        attribute float aPhase;
-        uniform float uTime;
-        uniform float uAudio;
-        varying float vAlpha;
-        void main(){
-          float pulse = 1.0 + uAudio*0.5;
-          vec4 mvp = modelViewMatrix * vec4(position, 1.0);
-          vAlpha = 0.08 + 0.20*abs(sin(uTime*1.2 + aPhase));
-          gl_PointSize = aSize * pulse * (55.0 / -mvp.z);
-          gl_Position  = projectionMatrix * mvp;
-        }`,
-            fragmentShader: `
-        uniform sampler2D uGlow;
-        uniform vec3 uTint;
-        varying float vAlpha;
-        void main(){
-          vec4 tex = texture2D(uGlow, gl_PointCoord);
-          if(tex.a < 0.01) discard;
-          vec3 col = mix(vec3(0.0, 0.85, 1.0), uTint, 0.60);
-          gl_FragColor = vec4(col, tex.a * vAlpha);
-        }`,
-            blending: THREE.AdditiveBlending,
-            depthWrite: false,
-            transparent: true,
-        });
-
-        this.outerDots = new THREE.Points(geo, mat);
-        this.outerDotsMat = mat;
-        this.scene.add(this.outerDots);
-    }
-
-    // ─────────────────────────────────────────────────────────
-    _lightning() {
+    _createLightning() {
         this.bolts = [];
-        this.boltGrp = new THREE.Group();
-
-        for (let i = 0; i < 14; i++) {
-            const geo = new THREE.BufferGeometry().setFromPoints(this._zapPath(
-                new THREE.Vector3((Math.random() - 0.5) * 1.6, (Math.random() - 0.5) * 1.6, (Math.random() - 0.5) * 1.6),
-                new THREE.Vector3((Math.random() - 0.5) * 2.6, (Math.random() - 0.5) * 2.6, (Math.random() - 0.5) * 2.6),
-                7
-            ));
+        // Massive thunderstorm effect around the core
+        const numBolts = 60;
+        for (let i = 0; i < numBolts; i++) {
+            const points = [];
+            const segs = 15; // Extremely jagged electric look
+            for (let j = 0; j <= segs; j++) {
+                points.push(new THREE.Vector3(0, 0, 0));
+            }
+            const geo = new THREE.BufferGeometry().setFromPoints(points);
             const mat = new THREE.LineBasicMaterial({
-                color: i % 4 === 0 ? 0xffffff : 0x00eeff,
-                transparent: true, opacity: 0, blending: THREE.AdditiveBlending
+                color: Math.random() > 0.3 ? 0x00eaff : 0xffffff,
+                transparent: true,
+                opacity: 0,
+                blending: THREE.AdditiveBlending,
+                linewidth: Math.random() > 0.8 ? 3 : 2 // varying thickness
             });
-            const line = new THREE.Line(geo, mat);
-            line.userData = { cd: Math.random() * 2.5 };
-            this.bolts.push(line);
-            this.boltGrp.add(line);
+            const bolt = new THREE.Line(geo, mat);
+            this.scene.add(bolt);
+            this.bolts.push({
+                line: bolt,
+                geo: geo,
+                timer: Math.random() * 30, // fire more rapidly
+                active: false,
+                segs: segs,
+            });
         }
-
-        this.scene.add(this.boltGrp);
     }
 
-    _zapPath(a, b, n) {
-        const pts = [a.clone()];
-        const dir = b.clone().sub(a);
-        for (let i = 1; i < n; i++) {
-            const p = a.clone().add(dir.clone().multiplyScalar(i / n));
-            p.x += (Math.random() - 0.5) * 1.0;
-            p.y += (Math.random() - 0.5) * 1.0;
-            p.z += (Math.random() - 0.5) * 1.0;
-            pts.push(p);
-        }
-        pts.push(b.clone());
-        return pts;
+    _updateLightning() {
+        // State-based lightning intensity
+        const intensityMult = {
+            idle: 1,
+            listening: 2,
+            processing: 4,  // Intense shocks when thinking
+            speaking: 2,
+        }[this.state] || 1;
+
+        this.bolts.forEach((bolt) => {
+            bolt.timer -= 0.016 * intensityMult * 2.5; // Thunders storm faster
+            if (bolt.timer <= 0 && !bolt.active) {
+                bolt.active = true;
+                bolt.timer = 0.02 + Math.random() * 0.08; // Flash duration extremely short for snap-like thunder
+
+                // Random chaotic direction from core
+                const theta = Math.random() * Math.PI * 2;
+                const phi = (Math.random() - 0.5) * Math.PI;
+                const len = 0.7 + Math.random() * 1.8; // Huge long electric arcs
+
+                const positions = bolt.geo.attributes.position.array;
+                let currentX = 0, currentY = 0, currentZ = 0;
+                
+                for (let i = 0; i <= bolt.segs; i++) {
+                    const t = i / bolt.segs;
+                    // Extreme Jagged random walk for true heavy thunder shock effect
+                    const jaggedness = 0.35;
+                    currentX = t * len * Math.cos(phi) * Math.cos(theta) + (Math.random() - 0.5) * jaggedness;
+                    currentY = t * len * Math.sin(phi) + (Math.random() - 0.5) * jaggedness;
+                    currentZ = t * len * Math.cos(phi) * Math.sin(theta) + (Math.random() - 0.5) * jaggedness;
+                    
+                    // Add forks in the lightning by disturbing specific points more
+                    if (i > 0 && i < bolt.segs && Math.random() > 0.7) {
+                        currentX += (Math.random() - 0.5) * 0.5;
+                        currentY += (Math.random() - 0.5) * 0.5;
+                        currentZ += (Math.random() - 0.5) * 0.5;
+                    }
+
+                    positions[i * 3] = currentX;
+                    positions[i * 3 + 1] = currentY;
+                    positions[i * 3 + 2] = currentZ;
+                }
+                bolt.geo.attributes.position.needsUpdate = true;
+                
+                // Extremely bright flash
+                bolt.line.material.opacity = (0.8 + Math.random() * 0.4) * (intensityMult > 1 ? 1.2 : 0.8);
+                
+                // Color variation for electric shocks
+                if (Math.random() > 0.7) {
+                    bolt.line.material.color.setHex(0xa855f7); // Purple arcs
+                } else {
+                    bolt.line.material.color.copy(this.emotionColor);
+                }
+            }
+
+            if (bolt.active) {
+                bolt.line.material.opacity *= 0.65; // Ultra Fast snap dissipation
+                // Extreme jittering during active flash
+                if (bolt.line.material.opacity > 0.1) {
+                    const positions = bolt.geo.attributes.position.array;
+                    for(let i=3; i < positions.length - 3; i++) {
+                        positions[i] += (Math.random() - 0.5) * 0.15;
+                    }
+                    bolt.geo.attributes.position.needsUpdate = true;
+                }
+
+                if (bolt.line.material.opacity < 0.01) {
+                    bolt.active = false;
+                    bolt.timer = (0.1 + Math.random() * 1.5) / intensityMult;
+                    bolt.line.material.opacity = 0;
+                }
+            }
+        });
     }
 
-    // ─────────────────────────────────────────────────────────
-    _bind() {
-        window.addEventListener('resize', () => this._resize());
-        this._resize();
+    _animate() {
+        if (this.disposed) return;
+        requestAnimationFrame(() => this._animate());
 
-        window.addEventListener('sentinal-state', e => {
-            const s = e.detail?.state;
-            if (['idle', 'listening', 'processing', 'speaking'].includes(s)) this.state = s;
-        });
-        window.addEventListener('sentinal-emotion-color', e => {
-            const hex = e.detail?.color;
-            if (typeof hex === 'string') this.emotionColor.set(hex);
-        });
+        this.time += 0.016;
 
-        // Also pick up the CSS theme color (set by the feelings UI) as a fallback.
-        const readCssEmotion = () => {
-            const css = getComputedStyle(document.documentElement)
-                .getPropertyValue('--sentinal-emotion-color')
-                .trim();
-            if (css) this.emotionColor.set(css);
+        // Extremely dynamic state-based speed multipliers
+        const speedMult = {
+            idle: 1,
+            listening: 2.5,
+            processing: 6.0,
+            speaking: 3.0,
+        }[this.state] || 1;
+
+        // Smooth color lerp
+        this.emotionColor.lerp(this.targetColor, 0.05);
+        if (this.core?.material?.color) this.core.material.color.copy(this.emotionColor);
+        if (this.wireCore?.material?.color) this.wireCore.material.color.copy(this.emotionColor);
+        if (this.coreGlow?.material?.color) this.coreGlow.material.color.copy(this.emotionColor);
+        if (this.coreLight?.color) this.coreLight.color.copy(this.emotionColor);
+
+        // Complex core pulse and rotation
+        const p1 = Math.sin(this.time * 2 * speedMult);
+        const p2 = Math.cos(this.time * 3 * speedMult);
+        const pulse = 1 + (p1 * 0.08) + (p2 * 0.04);
+        
+        if (this.core) {
+            this.core.scale.setScalar(pulse);
+            this.core.rotation.x += 0.01 * speedMult;
+            this.core.rotation.y += 0.02 * speedMult;
+        }
+        if (this.wireCore) {
+            this.wireCore.scale.setScalar(pulse * 1.05);
+            this.wireCore.rotation.x -= 0.02 * speedMult;
+            this.wireCore.rotation.z += 0.01 * speedMult;
+        }
+        if (this.coreGlow) this.coreGlow.scale.setScalar(pulse * 1.2);
+        if (this.halo) this.halo.scale.setScalar(pulse * 1.5 + Math.sin(this.time * 4) * 0.06);
+
+        // Core glow intensity
+        if (this.coreGlow) this.coreGlow.material.opacity = 0.15 + Math.sin(this.time * 5) * 0.08;
+        if (this.coreLight) this.coreLight.intensity = 2.0 + Math.sin(this.time * 3) * 0.8;
+        if (this.particles && this.particles.geometry.attributes.dynamics) {
+            const pos = this.particles.geometry.attributes.position.array;
+            const dyn = this.particles.geometry.attributes.dynamics.array;
+            
+            for (let i = 0; i < pos.length; i += 3) {
+                const baseR = dyn[i];
+                const baseTheta = dyn[i + 1];
+                const basePhi = dyn[i + 2];
+                
+                // Dynamic shifting
+                const t = this.time * 0.2 * speedMult;
+                const shiftAngle = baseTheta + (t * (2.0 / baseR)); // Inner ones spin faster
+                const swell = Math.sin(t * 3 + i) * 0.1; // Pulsing radius
+                
+                const currentR = baseR + swell;
+                
+                // Vertical swirling (tornado effect mixed with spheres)
+                const currentPhi = basePhi + Math.sin(t * 2 + i * 0.01) * 0.2;
+                
+                pos[i] = currentR * Math.sin(currentPhi) * Math.cos(shiftAngle);
+                pos[i + 1] = currentR * Math.sin(currentPhi) * Math.sin(shiftAngle) * 0.5 + Math.cos(t * 4 + i)*0.05;
+                pos[i + 2] = currentR * Math.cos(currentPhi);
+            }
+            this.particles.geometry.attributes.position.needsUpdate = true;
+        }
+
+        // Lightning
+        this._updateLightning();
+
+        // Mouse parallax
+        const targetRotX = this.mouseY * 0.4;
+        const targetRotY = this.mouseX * 0.4;
+        this.scene.rotation.x += (targetRotX - this.scene.rotation.x) * 0.1;
+        this.scene.rotation.y += (targetRotY - this.scene.rotation.y) * 0.1;
+
+        this.renderer.render(this.scene, this.camera);
+    }
+
+    setState(state) {
+        this.state = state;
+        const stateColors = {
+            idle: 0x00eaff,
+            listening: 0x22d3ee,
+            processing: 0xa855f7,
+            speaking: 0x00eaff,
         };
-        readCssEmotion();
-        this._cssEmotionTimer = window.setInterval(readCssEmotion, 900);
-        window.addEventListener('beforeunload', () => clearInterval(this._cssEmotionTimer));
-
-        const panel = this.el.closest('.left-panel') || document.body;
-        panel.addEventListener('mousemove', e => {
-            const r = panel.getBoundingClientRect();
-            this.mouse.x = ((e.clientX - r.left) / r.width - 0.5) * 2;
-            this.mouse.y = ((e.clientY - r.top) / r.height - 0.5) * 2;
-        });
+        this.targetColor = new THREE.Color(stateColors[state] || 0x00eaff);
     }
 
-    _resize() {
-        const w = this.el.clientWidth, h = this.el.clientHeight;
-        if (!w || !h) return;
-        this.ren.setSize(w, h);
-        this.camera.aspect = w / h;
+    setEmotion(valence) {
+        // -1 to 1 range
+        if (valence > 0.3) {
+            this.targetColor = new THREE.Color(0x22d3ee); // positive
+        } else if (valence < -0.3) {
+            this.targetColor = new THREE.Color(0xef4444); // negative
+        } else {
+            this.targetColor = new THREE.Color(0x00eaff); // neutral
+        }
+    }
+
+    _onResize() {
+        if (this.disposed) return;
+        this.width = this.container.clientWidth;
+        this.height = this.container.clientHeight;
+        this.camera.aspect = this.width / this.height;
         this.camera.updateProjectionMatrix();
+        this.renderer.setSize(this.width, this.height);
     }
 
-    setState(s) {
-        if (['idle', 'listening', 'processing', 'speaking'].includes(s)) this.state = s;
-    }
-
-    // ─────────────────────────────────────────────────────────
-    animate() {
-        requestAnimationFrame(this.animate);
-        const delta = Math.min(this.clock.getDelta(), 0.05);
-        this.t += delta;
-        const t = this.t;
-
-        // State speed multiplier
-        const sm = { idle: 1.0, listening: 1.7, processing: 3.0, speaking: 2.1 }[this.state] || 1.0;
-        const energyBoost = { idle: 1.0, listening: 1.15, processing: 1.42, speaking: 1.28 }[this.state] || 1.0;
-
-        // Simulated audio
-        if (this.state === 'processing') this.audioTgt = 0.5 + Math.sin(t * 16) * 0.30;
-        else if (this.state === 'speaking') this.audioTgt = 0.2 + Math.sin(t * 8) * 0.18;
-        else if (this.state === 'listening') this.audioTgt = 0.1 + Math.abs(Math.sin(t * 5)) * 0.10;
-        else this.audioTgt = 0.02 + Math.abs(Math.sin(t * 0.8)) * 0.03;
-        this.audio += (this.audioTgt - this.audio) * Math.min(1, delta * 8);
-        const au = this.audio;
-        this.stateColor.copy(this.statePalette[this.state] || this.statePalette.idle).lerp(this.emotionColor, 0.36);
-
-        this.thunder = Math.max(0, this.thunder - delta * 2.6);
-        const thunderF = this.thunder * (0.6 + Math.sin(t * 28 + this.thunderPhase) * 0.4);
-
-        // Subtle hue drift makes the core feel more "alive" without looking rainbow-noisy.
-        this.spectralColor.copy(this.stateColor);
-        this.spectralColor.getHSL(this._hsl);
-        const hueShift = Math.sin(t * 0.18) * (this.state === 'processing' ? 0.035 : this.state === 'speaking' ? 0.025 : 0.015);
-        this.spectralColor.setHSL(
-            (this._hsl.h + hueShift + 1) % 1,
-            Math.min(1, this._hsl.s * 1.08 + 0.02),
-            Math.min(1, this._hsl.l * 1.04 + 0.01)
-        );
-
-        if (this._prevState !== this.state) {
-            this._prevState = this.state;
-            this._spawnShockwave(0.9 + au * 1.1);
-        }
-        if ((this.state === 'processing' || this.state === 'speaking') && Math.random() < delta * (this.state === 'processing' ? 0.85 : 0.55)) {
-            this._spawnShockwave(0.55 + au * 1.2);
-        }
-
-        this.camera.position.z = 8.0 - au * 0.38 - (energyBoost - 1) * 0.12 + Math.sin(t * 0.45) * 0.08;
-
-        // ── Shader time ─────────────────────────────────
-        if (this.innerCloudMat) {
-            this.innerCloudMat.uniforms.uTime.value += delta * sm;
-            this.innerCloudMat.uniforms.uAudio.value = au;
-            this.innerCloudMat.uniforms.uTint.value.lerp(this.spectralColor, 0.08);
-        }
-        if (this.outerDotsMat) {
-            this.outerDotsMat.uniforms.uTime.value += delta * 0.5;
-            this.outerDotsMat.uniforms.uAudio.value = au;
-            this.outerDotsMat.uniforms.uTint.value.lerp(this.spectralColor, 0.06);
-        }
-
-        if (this.scanSweep) {
-            const sweepBase = this.state === 'processing' ? 0.14 : this.state === 'speaking' ? 0.11 : this.state === 'listening' ? 0.10 : 0.08;
-            this.scanSweep.material.opacity = Math.min(0.42, sweepBase + au * 0.16 + Math.abs(Math.sin(t * 0.6)) * 0.03);
-            this.scanSweep.material.color.lerp(this.spectralColor, 0.08);
-            this.scanSweep.material.rotation += delta * (0.55 * sm);
-            const sc = 4.8 + Math.sin(t * 1.2) * 0.10 + au * 0.55;
-            this.scanSweep.scale.set(sc, sc, 1);
-        }
-
-        if (this.coreSpark && this.coreSpark.userData && this.coreSpark.userData.active) {
-            this.coreSpark.userData.life += delta * 2.4;
-            const p = this.coreSpark.userData.life;
-            const fade = Math.max(0, 1 - p);
-            this.coreSpark.material.opacity = (this.coreSpark.userData.maxOp || this.coreSpark.material.opacity) * fade;
-            const baseScale = this.coreSpark.userData.baseScale || this.coreSpark.scale.x;
-            const s = baseScale * (1 + p * 0.35);
-            this.coreSpark.scale.set(s, s, 1);
-            this.coreSpark.material.color.lerp(this.spectralColor, 0.08);
-            if (p >= 1) {
-                this.coreSpark.userData.active = false;
-                this.coreSpark.material.opacity = 0.0;
+    dispose() {
+        this.disposed = true;
+        if (this._resizeObserver) this._resizeObserver.disconnect();
+        if (this.renderer) {
+            this.renderer.dispose();
+            if (this.renderer.domElement && this.renderer.domElement.parentNode) {
+                this.renderer.domElement.parentNode.removeChild(this.renderer.domElement);
             }
         }
-
-        if (this.shockwaves) {
-            this.shockwaves.forEach((sw) => {
-                if (!sw.userData.active) return;
-                sw.userData.life += delta * sw.userData.speed;
-                const p = sw.userData.life;
-                const eased = 1 - Math.pow(1 - Math.min(1, p), 2.4);
-                const s = 1.15 + eased * (3.8 + sw.userData.intensity * 0.6);
-                sw.scale.set(s, s, 1);
-                const swOp = (1 - p) * (0.32 + au * 0.26) * sw.userData.intensity;
-                sw.material.opacity = Math.min(0.55, Math.max(0, swOp));
-                sw.material.color.copy(this.P.white).lerp(this.spectralColor, 0.66);
-                sw.material.rotation += delta * (0.35 + sw.userData.speed * 0.12);
-                if (p >= 1) {
-                    sw.userData.active = false;
-                    sw.material.opacity = 0.0;
-                }
-            });
-        }
-
-        if (this.flares) {
-            // Keep the core visually aligned; outer DOM wrapper handles parallax tilt.
-            const px = 0.0;
-            const py = 0.0;
-            this.flares.forEach((sp, i) => {
-                const wob = Math.sin(t * (0.65 + i * 0.18) + i * 1.7) * 0.04;
-                const par = 0.65 + i * 0.18;
-                sp.position.set(sp.userData.baseX + px * par, sp.userData.baseY + py * par, 0);
-                const fScale = sp.userData.baseScale * (1 + au * (0.22 + i * 0.06) + wob * 0.25);
-                sp.scale.set(fScale, fScale, 1);
-                const stateBoost = this.state === 'processing' ? 0.06 : this.state === 'speaking' ? 0.04 : 0.0;
-                sp.material.opacity = sp.userData.baseOp + au * (0.10 + i * 0.05) + stateBoost;
-                sp.material.color.lerp(this.spectralColor, 0.06);
-            });
-        }
-
-        // ── Particle clouds drift ─────────────────────────
-        if (this.innerCloud) {
-            this.innerCloud.rotation.y -= delta * 0.06 * sm;
-            this.innerCloud.rotation.x = Math.sin(t * 0.18) * 0.05;
-        }
-        if (this.outerDots) {
-            this.outerDots.rotation.y += delta * 0.03;
-            this.outerDots.rotation.z -= delta * 0.02;
-        }
-
-        // ── Inner Core ────────────────────────────────────
-        if (this.coreGrp) {
-            const breathe = 1.0 + Math.sin(t * 1.8) * 0.02 + au * 0.10;
-            this.coreGrp.scale.setScalar(breathe);
-            this.coreGrp.rotation.x = Math.sin(t * 18) * 0.02 * this.thunder;
-            this.coreGrp.rotation.y = Math.cos(t * 20) * 0.02 * this.thunder;
-
-            if (this.coreMat) {
-                this.coreMat.uniforms.uTime.value += delta * (1.6 * sm);
-                this.coreMat.uniforms.uPulse.value = 0.62 + au * 0.55 + thunderF * 0.35;
-                this.coreMat.uniforms.uColor.value.lerp(this.spectralColor, 0.10);
-            }
-
-            if (this.coreSphere) {
-                const s = 1.0 + Math.sin(t * 3.8) * 0.05 + au * 0.14 + thunderF * 0.08;
-                this.coreSphere.scale.setScalar(s);
-            }
-
-            if (this.coreCrystal) {
-                this.coreCrystal.rotation.y += delta * 0.85 * sm;
-                this.coreCrystal.rotation.x -= delta * 0.65 * sm;
-                const crystalOp = 0.65 + au * 0.28 + Math.sin(t * 3.2) * 0.06;
-                this.coreCrystal.material.opacity = Math.min(0.95, Math.max(0.3, crystalOp));
-                this.coreCrystal.material.color.lerp(this.spectralColor, 0.22);
-                if (this.coreCrystal.material.emissive) {
-                    this.coreCrystal.material.emissive.lerp(this.spectralColor, 0.18);
-                    this.coreCrystal.material.emissiveIntensity = 0.95 + au * 0.6 + thunderF * 1.1;
-                }
-            }
-
-            if (this.coreWire) {
-                this.coreWire.rotation.y += delta * 0.65 * sm;
-                this.coreWire.rotation.x += delta * 0.45 * sm;
-                const wireOp = 0.12 + Math.sin(t * 3.2) * 0.06 + au * 0.18;
-                this.coreWire.material.opacity = Math.min(0.42, Math.max(0.06, wireOp));
-                this.coreWire.material.color.lerp(this.spectralColor, 0.10);
-            }
-
-
-            if (this.fresnelMat && this.fresnelShell) {
-                this.fresnelMat.uniforms.uTime.value += delta * sm;
-                this.fresnelMat.uniforms.uColor.value.lerp(this.spectralColor, 0.08);
-                const ib = this.state === 'processing' ? 0.16 : this.state === 'speaking' ? 0.15 : this.state === 'listening' ? 0.14 : 0.12;
-                this.fresnelMat.uniforms.uIntensity.value = Math.min(0.24, ib + au * 0.16);
-                this.fresnelMat.uniforms.uPower.value = 1.9 + Math.abs(Math.sin(t * 0.85)) * 0.45 + au * 0.28;
-                const s = 1.05 + au * 0.05 + Math.sin(t * 1.1) * 0.01;
-                this.fresnelShell.scale.set(s, s, s);
-            }
-        }
-
-        if (this.haloGrp && this.crownRing) {
-            this.haloGrp.rotation.z -= delta * 0.06 * sm;
-            this.crownRing.rotation.y += delta * 0.6 * sm;
-            this.crownRing.rotation.x += delta * 0.2 * sm;
-            const crownOp = 0.12 + Math.abs(Math.sin(t * 2.4)) * 0.10 + au * 0.10;
-            this.crownRing.material.opacity = Math.min(0.36, Math.max(0.05, crownOp));
-            this.crownRing.material.color.lerp(this.stateColor, 0.07);
-        }
-
-        // ── Point light pulse ─────────────────────────────
-        if (this.ptLight) {
-            this.ptLight.intensity = (3.4 + au * 4.8 + Math.sin(t * 2.8) * 0.65 + thunderF * 6.2) * (energyBoost * 0.85);
-            this.ptLight.color.lerp(this.stateColor, 0.08);
-        }
-        if (this.warmLight) {
-            this.warmLight.intensity = 0.8 + Math.max(0, Math.sin(t * 1.2)) * 0.25 + (this.state === 'speaking' ? 0.45 : this.state === 'processing' ? 0.34 : 0.16);
-            this.warmLight.color.setHex(this.state === 'processing' ? 0xffdc8a : this.state === 'speaking' ? 0xffb07c : 0xffc07a);
-        }
-
-        // ── Orbital Rings ─────────────────────────────────
-
-        // ── Segment Nodes orbit ───────────────────────────
-        if (this.segs) {
-            this.segs.forEach(seg => {
-                const d = seg.userData;
-                const a = d.baseAngle + t * d.spd;
-                if (d.plane === 'xy') seg.position.set(Math.cos(a) * d.r, Math.sin(a) * d.r, 0);
-                else seg.position.set(Math.cos(a) * d.r, 0, Math.sin(a) * d.r);
-                seg.lookAt(0, 0, 0);
-                seg.material.opacity = 0.60 + Math.sin(t * 5 + d.offset) * 0.35 + au * 0.4;
-                seg.material.color.copy(d.baseColor).lerp(this.stateColor, 0.42);
-                const ns = 1.0 + Math.sin(t * 6 + d.offset) * 0.15 + au * 0.5;
-                seg.scale.setScalar(Math.max(0.1, ns));
-            });
-        }
-
-        // ── Arc Lightning ─────────────────────────────────
-        if (this.bolts) {
-            const fProb = this.state === 'processing' ? 0.16
-                : this.state === 'speaking' ? 0.09
-                    : this.state === 'listening' ? 0.04 : 0.012;
-
-            this.bolts.forEach(b => {
-                b.userData.cd -= delta;
-                if (b.material.opacity > 0) b.material.opacity -= delta * 6;
-                b.material.color.lerp(this.stateColor, 0.12);
-                if (b.userData.cd <= 0 && Math.random() < fProb) {
-                    b.material.opacity = 0.7 + Math.random() * 0.3;
-                    b.userData.cd = 1.0 + Math.random() * 2.5;
-                    this.thunder = Math.min(1.2, Math.max(this.thunder, 0.7 + Math.random() * 0.6));
-                    const pts = this._zapPath(
-                        new THREE.Vector3((Math.random() - 0.5) * 1.6, (Math.random() - 0.5) * 1.6, (Math.random() - 0.5) * 1.6),
-                        new THREE.Vector3((Math.random() - 0.5) * 2.6, (Math.random() - 0.5) * 2.6, (Math.random() - 0.5) * 2.6),
-                        7
-                    );
-                    b.geometry.setFromPoints(pts);
-                    b.geometry.attributes.position.needsUpdate = true;
-                }
-            });
-        }
-
-        // ── Keep the core aligned (no internal mouse tilt) ───────────
-        this.tgtQ.identity();
-        this.currQ.slerp(this.tgtQ, 0.06);
-        this.scene.quaternion.copy(this.currQ);
-
-        this.ren.render(this.scene, this.camera);
     }
 }
 
-// ══════════════════════════════════════════════════════════════
-// AUTO-INIT
-// ══════════════════════════════════════════════════════════════
-
-document.addEventListener('DOMContentLoaded', () => {
-    const tryInit = () => {
-        if (!window.THREE) { setTimeout(tryInit, 100); return; }
-        const container = document.getElementById('tesseract-container');
-        if (!container) return;
-        window.sentinalCore3D = new SentinalCore3D('tesseract-container');
-    };
-    tryInit();
-});
+// Export for script.js
+window.SentinalCore3D = SentinalCore3D;

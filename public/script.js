@@ -1,2571 +1,1381 @@
-/* SENTINAL MARK IV — DUAL MODE INTERFACE */
+/**
+ * SENTINAL PRO - Main Application Controller
+ * View routing, boot sequence, chat, voice, evolution, system control
+ * Socket.IO integration with existing backend
+ */
 
-import { SoundManager } from './sound-manager.js';
+(function () {
+    'use strict';
 
-window.addEventListener("load", () => {
-  // --- SOUND SYSTEM (PROCEDURAL) ---
-  const sfx = new SoundManager();
+    // ═══════════════════════════════════════════════════════════
+    // STATE
+    // ═══════════════════════════════════════════════════════════
 
-  // Unlock audio context on first user gesture (prevents autoplay warnings).
-  const unlockAudio = () => {
-    sfx.unlock?.();
-  };
-  document.addEventListener('pointerdown', unlockAudio, { once: true });
-  document.addEventListener('keydown', unlockAudio, { once: true });
-
-  // Attach sounds to UI
-  document.querySelectorAll('button').forEach(btn => {
-    btn.addEventListener('mouseenter', () => sfx.playHover());
-    btn.addEventListener('click', () => sfx.playClick());
-  });
-
-  // Attach to inputs
-  if (document.getElementById('input')) {
-    document.getElementById('input').addEventListener('keydown', () => {
-      // Subtle typing sound
-      sfx.playTone(800 + Math.random() * 200, 'sine', 0.03, 0.05);
-    });
-  }
-
-  // --- DOM ELEMENTS ---
-  const reactorParallax = document.getElementById("reactorParallax");
-  const inputEl = document.getElementById("input");
-  const sendBtn = document.getElementById("send");
-  const micBtn = document.getElementById("mic");
-  const messagesEl = document.getElementById("messages");
-  const typingEl = document.getElementById("typing");
-  const statusDot = document.getElementById("statusDot");
-  const statusText = document.getElementById("statusText");
-  const hudClock = document.getElementById("hudClock");
-  const hudDate = document.getElementById("hudDate");
-  const tempBar = document.getElementById("tempBar");
-  const powerBar = document.getElementById("powerBar");
-
-  // Mode UI Elements
-  const voiceModeBtn = document.getElementById("voice-toggle");
-  const chatModeBtn = document.getElementById("chatModeBtn");
-  const hackerModeBtn = document.getElementById("hackerModeBtn");
-  const modeStatus = document.getElementById("modeStatus");
-  const voiceControls = document.getElementById("voiceControls");
-  const voiceStatus = document.getElementById("voiceStatus");
-  const voiceTerminate = document.getElementById("voiceTerminate");
-  const chatTerminate = document.getElementById("chatTerminate");
-  const chatPanel = document.getElementById("chatPanel");
-
-  // --- STATE & CONFIG ---
-  let micActive = false;
-  let currentMode = "chat"; // "voice" or "chat"
-  let isVoiceAutoListening = false;
-  let currentAbortController = null;
-  let voiceOutputEnabled = true; // Toggle for voice output in chat mode
-  const synth = window.speechSynthesis;
-  const recognition = initSpeechRecognition();
-
-  // WebSocket connection
-  const socket = io();
-  window.socket = socket; // Expose globally for inline handlers
-  let currentStreamingMessage = null;
-  let isStreaming = false;
-  let lastAssistantMessageText = "";
-  let lastAssistantMessageAt = 0;
-
-  // Image Attachment State
-  let pendingImages = []; // Array of base64 image strings
-  const fileInputEl = document.getElementById("fileInput");
-  const attachBtn = document.getElementById("attach");
-  const fileArea = document.getElementById("fileArea");
-
-  // --- ADVANCED BOOT SEQUENCE ---
-  // --- ADVANCED RETRO BIOS STARTUP ---
-  // --- ADVANCED BOOT SEQUENCE ---
-  async function runBiosSequence() {
-    const biosScreen = document.getElementById("bios-screen");
-    const biosLog = document.getElementById("bios-log");
-    const memCounter = document.getElementById("memCounter");
-    const dateEl = document.getElementById("bios-date");
-
-    if (!biosScreen || !biosLog) {
-      initSystem();
-      return;
-    }
-
-    // Set Assembly Date
-    if (dateEl) {
-      const now = new Date();
-      dateEl.textContent = `${String(now.getMonth() + 1).padStart(2, '0')}/${String(now.getDate()).padStart(2, '0')}/${now.getFullYear()}`;
-    }
-
-    // Helper: Add Log Line
-    const addLine = (text, type = 'log-info', speed = 0) => {
-      return new Promise(resolve => {
-        const p = document.createElement("div");
-        p.className = `log-line ${type}`;
-        biosLog.appendChild(p);
-        biosLog.scrollTop = biosLog.scrollHeight;
-
-        if (speed > 0) {
-          // Typing effect
-          let i = 0;
-          p.classList.add('typing-cursor');
-          p.textContent = "";
-          const timer = setInterval(() => {
-            p.textContent += text.charAt(i);
-            i++;
-            // Randomize typing sound pitch for realism
-            sfx.playTone(800 + Math.random() * 200, 'square', 0.02, 0.05);
-            if (i >= text.length) {
-              clearInterval(timer);
-              p.classList.remove('typing-cursor');
-              resolve();
-            }
-          }, speed);
-        } else {
-          // Instant
-          p.textContent = text;
-          resolve();
-        }
-      });
+    const state = {
+        currentView: 'dashboard',
+        socket: null,
+        connected: false,
+        reactor: null,
+        voiceReactor: null,
+        isListening: false,
+        isSpeaking: false,
+        recognition: null,
+        synthesis: window.speechSynthesis,
+        wasListeningBeforeSpeech: false,
+        chatHistory: [],
+        bootComplete: false,
+        neuralChat: null,
+        neuralVoice: null,
+        audioContext: null,
+        analyser: null,
+        audioStream: null,
+        visualizerActive: false,
     };
 
-    const delay = ms => new Promise(r => setTimeout(r, ms));
-
-    // START SEQUENCE
-    try {
-      // Initial Glitch
-      biosScreen.classList.add('glitch-text');
-      sfx.playTone(50, 'sawtooth', 0.2, 0.1); // Glitch sound
-      setTimeout(() => biosScreen.classList.remove('glitch-text'), 400);
-
-      // 1. BIOS Header Info
-      await addLine("BIOS DATE 02/03/2026 14:22:56 VER 4.2.0", "white", 10);
-      await addLine("CPU: QUANTUM NEURAL PROCESSOR @ 10.5 GHz", "white", 5);
-
-      // 2. Memory Check (Fast)
-      let mem = 0;
-      const total = 524288; // 512GB (display value)
-
-      // Start memory hum
-      sfx.playTone(100, 'square', 1.0, 0.05);
-
-      const memStep = () => {
-        mem += Math.floor(Math.random() * 50000) + 10000;
-        if (mem > total) mem = total;
-        if (memCounter) memCounter.textContent = mem;
-
-        if (mem < total) {
-          requestAnimationFrame(memStep);
-        }
-      };
-      memStep();
-
-      await delay(1200); // Wait for mem check to visually finish
-
-      // 3. System Modules
-      const modules = [
-        "ACPI Controller... OK",
-        "Neural Engine... INITIALIZED",
-        "Cryptographic Core... MOUNTED",
-        "Liquid Cooling... 34°C",
-        "Drive 0: QUANTUM_CORE_DRIVE... MOUNTED",
-        "Web Interface... LISTENING",
-        "Voice Synthesis... READY",
-        "Vision Processing... ONLINE",
-        "Security Subsystem... ARMED"
-      ];
-
-      for (const mod of modules) {
-        addLine(mod, "log-info");
-        await delay(60);
-      }
-
-      await delay(600);
-
-      // 4. Connection Sequence
-      await addLine("Initializing AI Core...", "white", 40);
-      await addLine(">> LOADING NEURAL WEIGHTS", "log-warn", 20);
-      await delay(400);
-      await addLine(">> CONNECTING TO SATELLITE UPLINK", "log-warn", 20);
-      await delay(800);
-
-      sfx.playTone(2000, 'sine', 0.5, 0.1); // Connection ping
-      await addLine(">> UPLINK ESTABLISHED", "log-success", 0);
-
-      await delay(800);
-
-      // 5. Handover
-      await addLine("SYSTEM READY.", "log-success");
-      await addLine("BOOTING S.E.N.T.I.N.A.L. INTERFACE...", "white");
-
-      // Startup Swell
-      sfx.playStartup();
-
-      await delay(1500);
-
-      // 6. Transition
-      const flash = document.createElement('div');
-      flash.className = 'flash-white';
-      document.body.appendChild(flash);
-
-      biosScreen.style.display = 'none';
-
-      // Start Main System
-      initSystem();
-
-      // Cleanup
-      setTimeout(() => flash.remove(), 2000);
-
-    } catch (e) {
-      console.error("Boot Sequence Error:", e);
-      // Fallback if anything crashes
-      biosScreen.style.display = 'none';
-      initSystem();
-    }
-  }
-
-  function initSystem() {
-    setStatus("idle");
-    document.body.style.opacity = "1";
-    updateClock();
-    setInterval(updateClock, 1000);
-    simulateTelemetry();
-    initArcReactor();
-    console.log("sentinal: System initialized.");
-  }
-
-  // Start BIOS
-  runBiosSequence();
-
-
-
-
-
-  // ─── MARKDOWN PARSER ────────────────────────────────────────────
-  // Converts AI markdown output to clean, styled HTML.
-  // Uses the existing CSS classes: md-h2, md-h3, md-h4, md-p,
-  // inline-code, code-block, etc.
-  function parseMarkdown(text) {
-    if (!text) return '';
-
-    // Extract and protect <think> blocks first (handles both finished and streaming/unclosed blocks)
-    const thinkBlocks = [];
-    text = text.replace(/<think>([\s\S]*?)(?:<\/think>|$)/gi, (match, content) => {
-      const idx = thinkBlocks.length;
-      const isComplete = match.toLowerCase().includes('</think>');
-      thinkBlocks.push({ content: content.trim(), isComplete });
-      return `\x00THINK${idx}\x00\n`;
-    });
-
-    // Escape HTML entities first (for the regular text)
-    const esc = (s) => s
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
-
-
-    // Extract and protect code blocks first
-    const codeBlocks = [];
-    let protected_text = text.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
-      const idx = codeBlocks.length;
-      codeBlocks.push({ lang: lang || 'code', code: esc(code.trim()) });
-      return `\x00CODEBLOCK${idx}\x00`;
-    });
-
-    // Process inline code
-    const inlineCodes = [];
-    protected_text = protected_text.replace(/`([^`\n]+)`/g, (_, code) => {
-      const idx = inlineCodes.length;
-      inlineCodes.push(esc(code));
-      return `\x00INLINE${idx}\x00`;
-    });
-
-    // Process lines
-    const lines = protected_text.split('\n');
-    const result = [];
-    let inList = false;
-    let listItems = [];
-
-    const flushList = () => {
-      if (listItems.length) {
-        result.push(`<ul class="md-list">${listItems.map(li => `<li class="md-li">${li}</li>`).join('')}</ul>`);
-        listItems = [];
-        inList = false;
-      }
-    };
-
-    for (let i = 0; i < lines.length; i++) {
-      let line = lines[i];
-
-      // Headers
-      if (/^######\s+/.test(line)) { flushList(); result.push(`<div class="md-h4">${line.replace(/^######\s+/, '')}</div>`); continue; }
-      if (/^#####\s+/.test(line)) { flushList(); result.push(`<div class="md-h4">${line.replace(/^#####\s+/, '')}</div>`); continue; }
-      if (/^####\s+/.test(line)) { flushList(); result.push(`<div class="md-h4">${line.replace(/^####\s+/, '')}</div>`); continue; }
-      if (/^###\s+/.test(line)) { flushList(); result.push(`<div class="md-h3">${line.replace(/^###\s+/, '')}</div>`); continue; }
-      if (/^##\s+/.test(line)) { flushList(); result.push(`<div class="md-h2">${line.replace(/^##\s+/, '')}</div>`); continue; }
-      if (/^#\s+/.test(line)) { flushList(); result.push(`<div class="md-h2">${line.replace(/^#\s+/, '')}</div>`); continue; }
-
-      // Horizontal rule
-      if (/^---+$/.test(line.trim())) { flushList(); result.push('<hr class="md-hr">'); continue; }
-
-      // List items
-      if (/^[\*\-]\s+/.test(line)) {
-        inList = true;
-        listItems.push(applyInline(line.replace(/^[\*\-]\s+/, '')));
-        continue;
-      }
-
-      // Numbered list
-      if (/^\d+\.\s+/.test(line)) {
-        inList = true;
-        listItems.push(applyInline(line.replace(/^\d+\.\s+/, '')));
-        continue;
-      }
-
-      // Blockquotes
-      if (/^>\s+/.test(line)) {
-        flushList();
-        result.push(`<blockquote class="md-quote">${applyInline(line.replace(/^>\s+/, ''))}</blockquote>`);
-        continue;
-      }
-
-      flushList();
-
-      // Empty line
-      if (!line.trim()) { result.push('<div class="md-spacer"></div>'); continue; }
-
-      // Normal paragraph line
-      result.push(`<div class="md-p">${applyInline(line)}</div>`);
-    }
-
-    flushList();
-
-    let html = result.join('');
-
-    // Restore code blocks
-    codeBlocks.forEach(({ lang, code }, idx) => {
-      html = html.replace(`\x00CODEBLOCK${idx}\x00`,
-        `<div class="code-block"><span class="code-lang">${lang.toUpperCase()}</span><pre><code>${code}</code></pre></div>`);
-    });
-
-    // Restore inline codes
-    inlineCodes.forEach((code, idx) => {
-      html = html.replace(`\x00INLINE${idx}\x00`, `<code class="inline-code">${code}</code>`);
-    });
-
-    // Restore think blocks
-    thinkBlocks.forEach(({ content, isComplete }, idx) => {
-      // Basic formatting for think content
-      let formatted = applyInline(esc(content)).replace(/\n/g, '<br>');
-      const statusIcon = isComplete ? '✓' : '<span class="pulse-ring inline"></span>';
-
-      const blockHtml = `<div class="md-think-block">
-                           <div class="md-think-header">
-                             <span>⚡ NEURAL PATHWAY</span>
-                             <span class="think-status">${statusIcon}</span>
-                           </div>
-                           <div class="md-think-content">${formatted}</div>
-                         </div>`;
-
-      // Replace it whether it got wrapped in a <p> or not by the markdown line processor
-      html = html.replace(`<div class="md-p">\x00THINK${idx}\x00</div>`, blockHtml);
-      html = html.replace(`\x00THINK${idx}\x00\n`, blockHtml);
-      html = html.replace(`\x00THINK${idx}\x00`, blockHtml);
-    });
-
-    return html;
-  }
-
-  function applyInline(text) {
-    return text
-      .replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>')
-      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*(.+?)\*/g, '<em>$1</em>')
-      .replace(/~~(.+?)~~/g, '<del>$1</del>')
-      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" class="md-link">$1</a>');
-  }
-
-  // --- THOUGHT UI HELPERS ---
-  let thoughtTimer = null;
-
-  function addThought(text, category = 'system') {
-    const msg = typeof text === 'string' ? text.trim() : '';
-    if (!msg) return;
-    const detail = { text: msg, category, timestamp: Date.now() };
-    window.dispatchEvent(new CustomEvent('sentinal-thought', { detail }));
-    const live = document.getElementById('sentinalLive');
-    if (live) live.textContent = msg;
-  }
-
-  function startThinking() {
-    setStatus("thinking");
-    const bubble = document.getElementById('thoughtBubble');
-    if (bubble) {
-      const textEl = document.getElementById('thoughtBubbleText');
-      const metaEl = document.getElementById('thoughtBubbleMeta');
-      const progressEl = bubble.querySelector('.thought-bubble-progress');
-
-      if (textEl) textEl.textContent = '"Analyzing..."';
-      if (metaEl) metaEl.textContent = `system · ${new Date().toLocaleTimeString()}`;
-      if (progressEl) {
-        progressEl.style.animation = 'none';
-        progressEl.offsetHeight;
-        progressEl.style.animation = 'progressDrain 30s linear forwards';
-      }
-
-      bubble.classList.add('visible');
-      clearTimeout(thoughtTimer);
-      thoughtTimer = setTimeout(() => bubble.classList.remove('visible'), 30000);
-    }
-    const brainIcon = document.getElementById('consciousnessIndicator')?.querySelector('.brain-pulse');
-    if (brainIcon) brainIcon.classList.add('thinking');
-  }
-
-  function stopThinking() {
-    const bubble = document.getElementById('thoughtBubble');
-    if (bubble) bubble.classList.remove('visible');
-    const brainIcon = document.getElementById('consciousnessIndicator')?.querySelector('.brain-pulse');
-    if (brainIcon) brainIcon.classList.remove('thinking');
-    if (thoughtTimer) {
-      clearTimeout(thoughtTimer);
-      thoughtTimer = null;
-    }
-  }
-
-  // ─── SOCKET EVENTS ──────────────────────────────────────────────
-
-
-  socket.on("system:status", (data) => {
-    // Pipe status updates to Thought UI instead of Chat
-    console.log("[STATUS]", data.status);
-    addThought(data.status);
-  });
-
-  socket.on("connect", () => {
-    setStatus("idle");
-    console.log("[Socket] Connected");
-    addMessage("SYSTEM ONLINE. S.E.N.T.I.N.A.L. MARK IV READY. AWAITING YOUR COMMAND, SIR.", "assistant");
-  });
-
-  socket.on("disconnect", () => {
-    console.log("[WebSocket] Disconnected from server");
-    setStatus("idle");
-    addMessage("⚠️ Connection lost. Attempting to reconnect...", "system");
-  });
-
-  socket.on("reconnect", () => {
-    console.log("[WebSocket] Reconnected to server");
-    addMessage("✓ Connection restored. All systems nominal.", "system");
-  });
-
-
-
-  socket.on("metrics:update", (metrics) => {
-    updateSystemMetrics(metrics);
-  });
-
-  socket.on("intent:detected", (intentData) => {
-    console.log(`[Intent] ${intentData.intent} (${(intentData.confidence * 100).toFixed(1)}%)`);
-  });
-
-
-
-  let streamingRawText = ''; // Track raw text during streaming
-  function normalizeAssistantText(text) {
-    return typeof text === "string" ? text.trim() : "";
-  }
-
-  function rememberAssistantMessage(text) {
-    const normalized = normalizeAssistantText(text);
-    if (!normalized) return;
-    lastAssistantMessageText = normalized;
-    lastAssistantMessageAt = Date.now();
-  }
-
-  function isDuplicateAssistantMessage(text, windowMs = 2500) {
-    const normalized = normalizeAssistantText(text);
-    if (!normalized || !lastAssistantMessageText) return false;
-    return normalized === lastAssistantMessageText && (Date.now() - lastAssistantMessageAt) < windowMs;
-  }
-
-  function finalizeStreamingMessage(text) {
-    const normalized = normalizeAssistantText(text);
-    if (!currentStreamingMessage || !normalized) return false;
-
-    const contentDiv = currentStreamingMessage.querySelector(".streaming-text, .message-content");
-    if (contentDiv) {
-      contentDiv.className = "message-content formatted";
-      contentDiv.innerHTML = parseMarkdown(normalized);
-    }
-
-    currentStreamingMessage.classList.remove("streaming");
-    currentStreamingMessage.classList.add("sentinal");
-    rememberAssistantMessage(normalized);
-    return true;
-  }
-
-  function renderAssistantMessage(text) {
-    const normalized = normalizeAssistantText(text);
-    if (!normalized) return;
-
-    if (currentStreamingMessage && finalizeStreamingMessage(normalized)) {
-      currentStreamingMessage = null;
-      streamingRawText = "";
-      streamingIsThinking = false;
-      return;
-    }
-
-    if (isDuplicateAssistantMessage(normalized)) return;
-
-    addMessage(normalized, "sentinal");
-    rememberAssistantMessage(normalized);
-  }
-
-  socket.on("chat:stream:start", () => {
-    isStreaming = true;
-    streamingRawText = '';
-    typingEl.classList.add("hidden");
-    setStatus("speaking");
-
-    // Create a simple streaming container (will be re-formatted on end)
-    currentStreamingMessage = document.createElement("div");
-    currentStreamingMessage.className = "message sentinal streaming";
-    const contentDiv = document.createElement("div");
-    contentDiv.className = "message-content streaming-text";
-    currentStreamingMessage.appendChild(contentDiv);
-    messagesEl.appendChild(currentStreamingMessage);
-  });
-
-  let streamingIsThinking = false;
-
-  socket.on("chat:stream:token", (data) => {
-    if (currentStreamingMessage) {
-      // Reconstruct <think> blocks on the fly based on backend isThought flag
-      if (data.isThought && !streamingIsThinking) {
-        streamingRawText += "\n<think>\n";
-        streamingIsThinking = true;
-      } else if (!data.isThought && streamingIsThinking) {
-        streamingRawText += "\n</think>\n\n";
-        streamingIsThinking = false;
-      }
-
-      streamingRawText += data.token;
-
-      // Parse markdown in real-time during streaming
-      const contentDiv = currentStreamingMessage.querySelector('.streaming-text');
-      if (contentDiv) {
-        contentDiv.innerHTML = parseMarkdown(streamingRawText);
-      }
-      messagesEl.scrollTop = messagesEl.scrollHeight;
-    }
-  });
-
-  socket.on("chat:stream:end", () => {
-    isStreaming = false;
-
-    // Apply markdown formatting to completed message
-    if (currentStreamingMessage && streamingRawText) {
-      const contentDiv = currentStreamingMessage.querySelector('.streaming-text');
-      if (contentDiv) {
-        contentDiv.className = 'message-content formatted';
-        contentDiv.innerHTML = parseMarkdown(streamingRawText);
-      }
-      currentStreamingMessage.classList.remove('streaming');
-      rememberAssistantMessage(streamingRawText);
-    }
-
-    currentStreamingMessage = null;
-    streamingRawText = '';
-    streamingIsThinking = false;
-    setStatus("idle");
-
-    // Trigger thunder when response completes
-    // if (window.triggerThunder) {
-    //   setTimeout(() => window.triggerThunder(), 200);
-    // }
-  });
-
-
-
-  socket.on("chat:response", (data) => {
-    // Handle standard plugin response
-    setStatus("idle");
-    typingEl.classList.add("hidden");
-    stopThinking(); // Safety: Ensure thought UI is closed
-    renderAssistantMessage(data.message);
-
-    // Handle specific actions
-    if (data.data) {
-      if (data.data.action === "camera_capture") {
-        openCamera();
-      } else if (data.data.action === "camera_close") {
-        closeCamera();
-      }
-    }
-  });
-
-  socket.on("chat:error", (data) => {
-    typingEl.classList.add("hidden");
-    setStatus("idle");
-    addMessage(`⚠️ Error: ${data.error}`, "system");
-  });
-
-  socket.on("tts:speak", (data) => {
-    // Only speak if voice output is enabled or in voice mode
-    if (voiceOutputEnabled || currentMode === "voice") {
-      speak(data.text);
-    }
-  });
-
-  // --- LIVE UI RELOADING ---
-  socket.on("sentinal:reload-css", () => {
-    console.log("[SENTINAL] Aesthetic override detected. Reloading stylesheets...");
-    const links = document.getElementsByTagName("link");
-    for (let i = 0; i < links.length; i++) {
-      const link = links[i];
-      if (link.rel === "stylesheet" && link.href) {
-        // Append a cache-busting timestamp
-        const newHref = link.href.split('?')[0] + '?v=' + new Date().getTime();
-        link.href = newHref;
-      }
-    }
-
-    // Visual confirmation of aesthetic shift
-    const flash = document.createElement('div');
-    flash.style.position = 'fixed';
-    flash.style.inset = '0';
-    flash.style.backgroundColor = 'rgba(0, 239, 255, 0.2)';
-    flash.style.zIndex = '999999';
-    flash.style.pointerEvents = 'none';
-    flash.style.transition = 'opacity 0.5s ease-out';
-    document.body.appendChild(flash);
-
-    // Trigger sound
-    sfx.playTone(600, 'sine', 0.5, 0.1);
-
-    setTimeout(() => {
-      flash.style.opacity = '0';
-      setTimeout(() => flash.remove(), 500);
-    }, 50);
-  });
-
-  // --- SYSTEM METRICS UPDATE ---
-  function updateSystemMetrics(metrics) {
-    // Update CPU/RAM indicators in the HUD
-    if (tempBar && metrics.cpu) {
-      tempBar.style.width = `${metrics.cpu.usage}%`;
-    }
-    if (powerBar && metrics.memory) {
-      powerBar.style.width = `${metrics.memory.usagePercent}%`;
-    }
-  }
-
-  // --- ARC REACTOR (3D HIGH FIDELITY) — FULLY FIXED ---
-  function initArcReactor() {
-    // FIX: Use correct container ID matching the HTML
-    const container = document.getElementById("tesseract-container");
-    if (!container) {
-      console.warn('[SENTINAL] Arc Reactor container not found — skipping 3D init');
-      return;
-    }
-
-    // Premium parallax tilt for the orb wrapper (pure CSS transform).
-    // The 3D reactor itself is rendered by `core-particles.js` (SentinalCore3D).
-    if (reactorParallax && !reactorParallax.dataset.parallaxInit) {
-      reactorParallax.dataset.parallaxInit = '1';
-
-      const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
-      if (!reduceMotion) {
-        let targetX = 0;
-        let targetY = 0;
-        let currentX = 0;
-        let currentY = 0;
-        let rafId = 0;
-
-        const clamp = (v, max) => Math.max(-max, Math.min(max, v));
-        const tick = () => {
-          currentX += (targetX - currentX) * 0.09;
-          currentY += (targetY - currentY) * 0.09;
-          reactorParallax.style.setProperty('--tilt-x', `${currentY.toFixed(3)}deg`);
-          reactorParallax.style.setProperty('--tilt-y', `${currentX.toFixed(3)}deg`);
-          rafId = requestAnimationFrame(tick);
-        };
-        rafId = requestAnimationFrame(tick);
-
-        reactorParallax.addEventListener('pointerenter', () => reactorParallax.classList.add('tilting'));
-        reactorParallax.addEventListener('pointerleave', () => {
-          reactorParallax.classList.remove('tilting');
-          targetX = 0;
-          targetY = 0;
-        });
-
-        reactorParallax.addEventListener('pointermove', (e) => {
-          const r = reactorParallax.getBoundingClientRect();
-          const nx = ((e.clientX - r.left) / r.width - 0.5) * 2;  // -1..1
-          const ny = ((e.clientY - r.top) / r.height - 0.5) * 2;  // -1..1
-
-          // Keep it subtle. Too much tilt reads "toy" instead of "premium".
-          targetX = clamp(nx * 7.5, 8);
-          targetY = clamp(-ny * 7.5, 8);
-
-          // Feed CSS hotspots for a moving glint.
-          const hx = Math.max(0, Math.min(100, (nx * 0.5 + 0.5) * 100));
-          const hy = Math.max(0, Math.min(100, (ny * 0.5 + 0.5) * 100));
-          reactorParallax.style.setProperty('--hot-x', `${hx.toFixed(2)}%`);
-          reactorParallax.style.setProperty('--hot-y', `${hy.toFixed(2)}%`);
-        });
-
-        window.addEventListener('beforeunload', () => cancelAnimationFrame(rafId));
-      }
-    }
-
-    // If the premium core is already initialized, don't spin up a second renderer.
-    // A hidden RAF loop would keep running and waste GPU/CPU.
-    if (window.sentinalCore3D) return;
-
-    // Cleanup existing
-    while (container.firstChild) container.removeChild(container.firstChild);
-
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(75, 1, 0.1, 1000);
-    const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-
-    const rect = container.getBoundingClientRect();
-    const w = Math.max(rect.width, 180);
-    const h = Math.max(rect.height, 180);
-    renderer.setSize(w, h);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    container.appendChild(renderer.domElement);
-    camera.position.z = 5;
-
-    const reactorGroup = new THREE.Group();
-    scene.add(reactorGroup);
-
-    // ── MATERIALS ──────────────────────────────────────────────────
-    const matCyan = new THREE.MeshBasicMaterial({
-      color: 0x00efff, transparent: true, opacity: 0.85,
-      blending: THREE.AdditiveBlending
-    });
-    const matGlow = new THREE.MeshBasicMaterial({
-      color: 0x00bfff, transparent: true, opacity: 0.55,
-      wireframe: true, blending: THREE.AdditiveBlending
-    });
-    const matCore = new THREE.MeshBasicMaterial({
-      color: 0xffffff, transparent: true, opacity: 0.9,
-      blending: THREE.AdditiveBlending
-    });
-    const matRing = new THREE.MeshBasicMaterial({
-      color: 0x00efff, transparent: true, opacity: 0.75,
-      blending: THREE.AdditiveBlending
-    });
-    const matSegment = new THREE.MeshBasicMaterial({
-      color: 0x00efff, transparent: true, opacity: 0.6,
-      blending: THREE.AdditiveBlending
-    });
-
-    // ── GEOMETRY — All declared BEFORE animate() ────────────────────
-
-    // 1. Neural Core
-    const neuralCore = new THREE.Mesh(
-      new THREE.IcosahedronGeometry(0.7, 1),
-      new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true, transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending })
-    );
-    reactorGroup.add(neuralCore);
-
-    // 2. Plasma Core (FIX: declared here so animate can use it)
-    const plasma = new THREE.Mesh(
-      new THREE.SphereGeometry(0.45, 16, 16),
-      matCore
-    );
-    reactorGroup.add(plasma);
-
-    // 3. Inner Ring (FIX: declared here so animate can use it)
-    const innerRing = new THREE.Mesh(
-      new THREE.TorusGeometry(1.1, 0.04, 8, 64),
-      matRing
-    );
-    reactorGroup.add(innerRing);
-
-    // 4. Outer Shell
-    const shell = new THREE.Mesh(
-      new THREE.IcosahedronGeometry(1.5, 1),
-      matGlow
-    );
-    reactorGroup.add(shell);
-
-    // 5. Orbital Ring
-    const orbitalRing = new THREE.Mesh(
-      new THREE.TorusGeometry(2.2, 0.015, 6, 120),
-      matCyan
-    );
-    orbitalRing.rotation.x = Math.PI / 3;
-    reactorGroup.add(orbitalRing);
-
-    // 6. Segment Group (FIX: declared and built here so animate can use it)
-    const segmentGroup = new THREE.Group();
-    const segGeo = new THREE.BoxGeometry(0.08, 0.25, 0.08);
-    for (let i = 0; i < 12; i++) {
-      const seg = new THREE.Mesh(segGeo, matSegment);
-      const angle = (i / 12) * Math.PI * 2;
-      seg.position.set(Math.cos(angle) * 2.0, Math.sin(angle) * 2.0, 0);
-      seg.lookAt(0, 0, 0);
-      segmentGroup.add(seg);
-    }
-    reactorGroup.add(segmentGroup);
-
-    // 7. Data Particles
-    const particleGroup = new THREE.Group();
-    const ptGeo = new THREE.BoxGeometry(0.04, 0.15, 0.04);
-    for (let i = 0; i < 30; i++) {
-      const pt = new THREE.Mesh(ptGeo, matCyan);
-      const theta = Math.random() * Math.PI * 2;
-      const phi = Math.acos(2 * Math.random() - 1);
-      const r = 1.8 + Math.random() * 0.6;
-      pt.position.set(
-        r * Math.sin(phi) * Math.cos(theta),
-        r * Math.sin(phi) * Math.sin(theta),
-        r * Math.cos(phi)
-      );
-      pt.userData.offset = Math.random() * Math.PI * 2;
-      particleGroup.add(pt);
-    }
-    reactorGroup.add(particleGroup);
-
-    // ── LIGHTING ───────────────────────────────────────────────────
-    const pointLight = new THREE.PointLight(0x00efff, 3.5, 12);
-    pointLight.position.set(0, 0, 0);
-    reactorGroup.add(pointLight);
-    scene.add(new THREE.AmbientLight(0x0a1a2a));
-
-    // Emotion-responsive color
-    let currentEmotionColor = new THREE.Color(0x00efff);
-    window.addEventListener('sentinal-emotion-color', (e) => {
-      const hex = e.detail?.color || '#00efff';
-      currentEmotionColor.set(hex);
-    });
-
-    // ── ANIMATION LOOP ─────────────────────────────────────────────
-    function animate() {
-      requestAnimationFrame(animate);
-      const time = Date.now() * 0.001;
-
-      // Floating drift
-      reactorGroup.rotation.x = Math.sin(time * 0.7) * 0.12 + Math.sin(time * 0.3) * 0.04;
-      reactorGroup.rotation.y = Math.cos(time * 0.5) * 0.12 + Math.sin(time * 0.2) * 0.04;
-
-      // Inner ring spin
-      innerRing.rotation.z -= 0.035;
-      innerRing.rotation.x = Math.sin(time * 1.5) * 0.15;
-      innerRing.scale.setScalar(1.0 + Math.sin(time * 2) * 0.04);
-      innerRing.material.opacity = 0.55 + Math.sin(time * 5) * 0.2;
-
-      // Plasma pulse
-      const pulse = Math.sin(time * 4) + Math.sin(time * 13) * 0.3;
-      const breathe = (pulse + 1.2) * 0.5;
-      plasma.scale.setScalar(0.85 + breathe * 0.22);
-      plasma.material.opacity = 0.7 + breathe * 0.3;
-
-      // Point light pulse + emotion color
-      pointLight.intensity = 2.5 + breathe * 2.5;
-      const shift = Math.max(0, breathe - 0.4) * 1.5;
-      pointLight.color.lerp(currentEmotionColor, 0.05);
-
-      // Shell fade
-      shell.material.opacity = 0.25 + Math.sin(time * 1.2) * 0.15;
-
-      // Orbital ring rotate
-      orbitalRing.rotation.z += 0.008;
-
-      // Segments oscillate
-      segmentGroup.rotation.z = Math.sin(time * 0.5) * 0.4;
-      segmentGroup.children.forEach((child, i) => {
-        const baseDist = 2.0;
-        const dist = baseDist + Math.sin(time * 8 + i * 0.5) * 0.06;
-        const len = child.position.length();
-        if (len > 0) child.position.multiplyScalar(dist / len);
-      });
-
-      // Particles drift
-      particleGroup.children.forEach((pt) => {
-        pt.material.opacity = 0.3 + Math.sin(time * 3 + pt.userData.offset) * 0.3;
-      });
-      particleGroup.rotation.y += 0.003;
-
-      renderer.render(scene, camera);
-    }
-    animate();
-
-    // Responsive resize
-    const resizeObserver = new ResizeObserver(() => {
-      const newRect = container.getBoundingClientRect();
-      const nw = Math.max(newRect.width, 180);
-      const nh = Math.max(newRect.height, 180);
-      renderer.setSize(nw, nh);
-      camera.aspect = nw / nh;
-      camera.updateProjectionMatrix();
-    });
-    resizeObserver.observe(container);
-  }
-
-  // --- STATUS MANAGEMENT ---
-  let thunderInterval = null;
-
-  function setStatus(mode) {
-    const modes = {
-      idle: { text: "IDLE", class: "", dotColor: "#00f2ff" },
-      thinking: { text: "PROCESSING", class: "thinking", dotColor: "#ffcc00" },
-      speaking: { text: "RESPONDING", class: "speaking", dotColor: "#ff9900" },
-      listening: { text: "LISTENING", class: "listening", dotColor: "#00ff88" },
-      connected: { text: "CONNECTED", class: "", dotColor: "#00ff88" },
-    };
-
-    const config = modes[mode] || modes.idle;
-    statusText.textContent = config.text;
-    document.body.classList.remove('thinking', 'speaking', 'listening');
-    if (config.class) document.body.classList.add(config.class);
-    statusDot.style.background = config.dotColor;
-    statusDot.style.boxShadow = `0 0 12px ${config.dotColor}, 0 0 25px ${config.dotColor}44`;
-
-    // ── Sync 3D Quantum Core visual state ──────────────────────
-    const coreStateMap = {
-      idle: 'idle',
-      connected: 'idle',
-      thinking: 'processing',
-      speaking: 'speaking',
-      listening: 'listening',
-    };
-    const coreState = coreStateMap[mode] || 'idle';
-
-    // API via window event (works regardless of script load order)
-    window.dispatchEvent(new CustomEvent('sentinal-state', { detail: { state: coreState } }));
-
-    // Also call directly if already initialized
-    if (window.sentinalCore3D?.setState) {
-      window.sentinalCore3D.setState(coreState);
-    }
-  }
-
-  // --- CLOCK & DATE ---
-  function updateClock() {
-    const now = new Date();
-    const hours = String(now.getHours()).padStart(2, "0");
-    const minutes = String(now.getMinutes()).padStart(2, "0");
-    const seconds = String(now.getSeconds()).padStart(2, "0");
-    hudClock.textContent = `${hours}:${minutes}:${seconds}`;
-
-    const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
-    const dateStr = `${months[now.getMonth()]}. ${String(now.getDate()).padStart(2, "0")}, ${now.getFullYear()}`;
-    hudDate.textContent = dateStr;
-  }
-
-  // --- TELEMETRY SIMULATION (Enhanced) ---
-  function simulateTelemetry() {
-    // Faster, smoother updates
-    setInterval(() => {
-      const tempBase = 42;
-      const tempJitter = (Math.random() - 0.5) * 5;
-      const temp = tempBase + tempJitter;
-
-      const powerBase = 8.8;
-      const powerJitter = (Math.random() - 0.5) * 0.4;
-      const power = powerBase + powerJitter;
-
-      if (tempBar) {
-        tempBar.style.width = `${Math.min(100, Math.max(0, temp))}%`;
-        const tempValEl = tempBar.parentElement.nextElementSibling;
-        if (tempValEl) tempValEl.textContent = `${temp.toFixed(1)}°C`;
-
-        // Color warning
-        if (temp > 50) tempBar.style.background = "#ff3b3b";
-        else tempBar.style.background = "#00efff";
-      }
-
-      if (powerBar) {
-        powerBar.style.width = `${Math.min(100, Math.max(0, power * 10))}%`;
-        const powerValEl = powerBar.parentElement.nextElementSibling;
-        if (powerValEl) powerValEl.textContent = `${power.toFixed(2)} GW`;
-      }
-    }, 800); // 800ms updates
-  }
-
-  // --- TEXT DECRYPTION EFFECT ---
-  function decryptText(element, originalText, speed = 50) {
-    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%^&*";
-    let iterations = 0;
-
-    const interval = setInterval(() => {
-      element.textContent = originalText
-        .split("")
-        .map((letter, index) => {
-          if (index < iterations) {
-            return originalText[index];
-          }
-          return chars[Math.floor(Math.random() * chars.length)];
-        })
-        .join("");
-
-      if (iterations >= originalText.length) {
-        clearInterval(interval);
-      }
-
-      iterations += 1 / 3;
-    }, speed);
-  }
-
-  // Apply decryption to headers on load
-  setTimeout(() => {
-    document.querySelectorAll('.telemetry-item .label, .sentinal-title, .mode-label').forEach(el => {
-      decryptText(el, el.textContent.trim());
-    });
-  }, 1000);
-
-  // --- LIVE LOCATION ---
-  async function initGeolocation() {
-    const locationEl = document.getElementById("weatherLocation");
-    if (!locationEl) return;
-
-    locationEl.textContent = "LOCATING...";
-
-    const useServerLocation = Boolean(window.electronAPI);
-    if (useServerLocation) {
-      try {
-        // 1. Prioritize Server-side configuration/override
-        const response = await fetch('/api/config/location');
-        const config = await response.json();
-
-        if (config.ok && config.location) {
-          const { city, countryCode } = config.location;
-          locationEl.textContent = `${city.toUpperCase()}, ${countryCode.toUpperCase()}`;
-          console.log(`[SENTINAL] Location (Server): ${city}, ${countryCode}`);
-          return;
-        }
-      } catch (e) {
-        console.warn("[SENTINAL] Server location API unavailable, falling back to browser sensors.");
-      }
-    }
-
-    // 2. Fallback to Browser Geolocation
-    if ("geolocation" in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        async (position) => {
-          const { latitude, longitude } = position.coords;
-          try {
-            const response = await fetch(
-              `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`
-            );
-            const data = await response.json();
-            const city = data.address?.city || data.address?.town || data.address?.village || data.address?.county || "UNKNOWN";
-            const country = data.address?.country_code?.toUpperCase() || "";
-            locationEl.textContent = `${city.toUpperCase()}${country ? ', ' + country : ''}`;
-            console.log(`[SENTINAL] Location (Browser): ${city}, ${country}`);
-          } catch (err) {
-            locationEl.textContent = `${latitude.toFixed(2)}°, ${longitude.toFixed(2)}°`;
-          }
-        },
-        (error) => {
-          console.warn("[SENTINAL] Geolocation error:", error.message);
-          locationEl.textContent = "LOCATION N/A";
-        },
-        { enableHighAccuracy: true, timeout: 10000 }
-      );
-    } else {
-      locationEl.textContent = "GEO UNAVAILABLE";
-    }
-  }
-
-  // Initialize location on boot
-  initGeolocation();
-
-  // --- IMAGE ATTACHMENT HANDLERS ---
-
-  // Create image preview container if not exists
-  function createImagePreviewContainer() {
-    let container = document.getElementById('imagePreviewContainer');
-    if (!container) {
-      container = document.createElement('div');
-      container.id = 'imagePreviewContainer';
-      container.className = 'image-preview-container';
-      // Insert before the input area
-      const inputArea = document.querySelector('.input-area');
-      if (inputArea && inputArea.parentNode) {
-        inputArea.parentNode.insertBefore(container, inputArea);
-      }
-    }
-    return container;
-  }
-
-  // Add image preview to UI
-  function addImagePreview(imageData, index) {
-    const container = createImagePreviewContainer();
-    const preview = document.createElement('div');
-    preview.className = 'image-preview';
-    preview.dataset.index = index;
-    preview.innerHTML = `
-      <img src="data:image/jpeg;base64,${imageData}" alt="Attached image" />
-      <button class="remove-image" title="Remove">&times;</button>
-    `;
-
-    preview.querySelector('.remove-image').addEventListener('click', () => {
-      pendingImages.splice(index, 1);
-      refreshImagePreviews();
-    });
-
-    container.appendChild(preview);
-    container.classList.remove('hidden');
-  }
-
-
-
-
-
-  // Refresh all image previews
-  function refreshImagePreviews() {
-    const container = document.getElementById('imagePreviewContainer');
-    if (container) {
-      container.innerHTML = '';
-      if (pendingImages.length === 0) {
-        container.classList.add('hidden');
-      } else {
-        pendingImages.forEach((img, i) => addImagePreview(img, i));
-      }
-    }
-  }
-
-  // Clear all image previews
-  function clearImagePreviews() {
-    pendingImages = [];
-    const container = document.getElementById('imagePreviewContainer');
-    if (container) {
-      container.innerHTML = '';
-      container.classList.add('hidden');
-    }
-  }
-
-  // Attach button click handler
-  if (attachBtn && fileInputEl) {
-    attachBtn.addEventListener('click', () => {
-      fileInputEl.click();
-    });
-
-    // File input change handler
-    fileInputEl.addEventListener('change', (e) => {
-      const files = Array.from(e.target.files);
-
-      files.forEach(file => {
-        if (!file.type.startsWith('image/')) {
-          console.warn('[SENTINAL] Skipping non-image file:', file.name);
-          return;
-        }
-
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          // Extract base64 data (remove the "data:image/...;base64," prefix)
-          const base64Data = event.target.result.split(',')[1];
-          pendingImages.push(base64Data);
-          addImagePreview(base64Data, pendingImages.length - 1);
-          console.log(`[SENTINAL] Image attached: ${file.name}`);
-        };
-        reader.readAsDataURL(file);
-      });
-
-      // Reset file input for future selections
-      fileInputEl.value = '';
-    });
-  }
-
-  // Handle paste events for clipboard images (Ctrl+V)
-  document.addEventListener('paste', (e) => {
-    const items = e.clipboardData?.items;
-    if (!items) return;
-
-    for (const item of items) {
-      if (item.type.startsWith('image/')) {
-        e.preventDefault();
-        const file = item.getAsFile();
-        if (!file) continue;
-
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          const base64Data = event.target.result.split(',')[1];
-          pendingImages.push(base64Data);
-          addImagePreview(base64Data, pendingImages.length - 1);
-          console.log('[SENTINAL] Image pasted from clipboard');
-        };
-        reader.readAsDataURL(file);
-      }
-    }
-  });
-
-  // Handle drag and drop for images
-  if (fileArea) {
-    fileArea.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      fileArea.classList.add('drag-over');
-    });
-
-    fileArea.addEventListener('dragleave', () => {
-      fileArea.classList.remove('drag-over');
-    });
-
-    fileArea.addEventListener('drop', (e) => {
-      e.preventDefault();
-      fileArea.classList.remove('drag-over');
-
-      const files = Array.from(e.dataTransfer.files);
-      files.forEach(file => {
-        if (!file.type.startsWith('image/')) return;
-
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          const base64Data = event.target.result.split(',')[1];
-          pendingImages.push(base64Data);
-          addImagePreview(base64Data, pendingImages.length - 1);
-          console.log(`[SENTINAL] Image dropped: ${file.name}`);
-        };
-        reader.readAsDataURL(file);
-      });
-    });
-  }
-
-  // --- SEND MESSAGE ---
-  function sendMessage(text) {
-    const hasText = text && text.trim();
-    const hasImages = pendingImages.length > 0;
-
-    if (!hasText && !hasImages) return;
-
-    const msg = hasText ? text.trim() : 'Analyze this image.';
-    inputEl.value = "";
-
-    // Display user message (with image indicator if applicable)
-    if (hasImages) {
-      addMessage(`📷 [Image attached] ${msg}`, "user");
-    } else {
-      addMessage(msg, "user");
-    }
-
-    // Show typing indicator
-    typingEl.classList.remove("hidden");
-    setStatus("thinking");
-
-    // If images are pending, send via chat:image
-    if (hasImages) {
-      // Send first image (or loop for multiple)
-      socket.emit("chat:image", {
-        imageData: pendingImages[0],
-        prompt: msg
-      });
-      clearImagePreviews();
-    } else {
-      // Send via WebSocket for text-only
-      socket.emit("chat:message", {
-        message: msg,
-        history: []
-      });
-    }
-  }
-
-
-
-  // Copy code function
-  window.copyCode = function (btn) {
-    const codeBlock = btn.previousElementSibling;
-    const code = codeBlock.textContent;
-    navigator.clipboard.writeText(code).then(() => {
-      btn.textContent = '✓ Copied!';
-      btn.classList.add('copied');
-      setTimeout(() => {
-        btn.textContent = '📋 Copy';
-        btn.classList.remove('copied');
-      }, 2000);
-    });
-  };
-
-  // --- MESSAGE CREATION ---
-  function createMessage(text, sender) {
-    const div = document.createElement("div");
-    div.className = `message ${sender}`;
-
-    if (sender === 'sentinal' || sender === 'system') {
-      // Parse markdown for SENTINAL responses
-      const contentDiv = document.createElement('div');
-      contentDiv.className = 'message-content formatted';
-      contentDiv.innerHTML = parseMarkdown(text);
-      div.appendChild(contentDiv);
-    } else {
-      // Plain text for user messages
-      div.textContent = text;
-    }
-
-    return div;
-  }
-
-  function addMessage(text, sender) {
-    const div = createMessage(text, sender);
-    messagesEl.appendChild(div);
-    messagesEl.scrollTop = messagesEl.scrollHeight;
-    if (sender === "sentinal") {
-      rememberAssistantMessage(text);
-    }
-  }
-
-  function speak(text) {
-    if (!synth) return;
-
-    // Safety check: ensure voices are loaded
-    if (synth.getVoices().length === 0) {
-      console.warn("[TTS] Voices not loaded yet. Waiting...");
-      synth.onvoiceschanged = () => {
-        synth.onvoiceschanged = null; // Prevent re-triggering
-        speak(text);
-      };
-      return;
-    }
-
-    const utter = new SpeechSynthesisUtterance(text);
-    console.log(`[TTS] Speaking: "${text.substring(0, 50)}..."`);
-
-    // Extremely Deep, Threatening Bass Tuning
-    const voices = synth.getVoices();
-    const voice = voices.find(v =>
-      v.name.includes("Mark") ||
-      v.name.includes("Google UK English Male") ||
-      v.name.includes("David") ||
-      v.name.includes("Male") ||
-      v.name.includes("Daniel")
-    ) || voices.find(v => v.lang.startsWith("en-GB")) || voices[0];
-
-    if (voice) utter.voice = voice;
-
-    // Lowest possible pitch for maximum bass and danger
-    utter.pitch = 0.05;
-    utter.rate = 0.7; // Deliberate, calculating, slow paced
-
-    // Clean text for TTS (remove markdown, code blocks, URLs, and thought tags)
-    let cleanText = text
-      .replace(/<thought>[\s\S]*?<\/thought>/gi, '') // Remove thought tags content
-      .replace(/```[\s\S]*?```/g, ' [Code Block] ')   // Replace code blocks with short pause descriptive text
-      .replace(/`([^`]+)`/g, '$1')                    // Inline code to normal text
-      .replace(/\[.*?\]\(.*?\)/g, '')                 // Remove markdown links
-      .replace(/(https?:\/\/[^\s]+)/g, 'Link')        // Replace raw URLs with "Link"
-      .replace(/[*_#]/g, '')                          // Remove formatting chars
-      .replace(/\n/g, '. ');                          // Newlines to pauses
-
-    utter.text = cleanText;
-
-    // Track what is being said for Echo Cancellation
-    window.lastSpokenText = cleanText;
-    window.lastSpeakTime = Date.now(); // Track WHEN it was said
-
-    // Increment active speech counter
-    window.activeSpeechCount = (window.activeSpeechCount || 0) + 1;
-
-    utter.onstart = () => {
-      console.log("[TTS] Speech start");
-      setStatus("speaking");
-      // Stop mic to prevent echo (Hard Echo Cancellation)
-      if (micActive && recognition) {
-        try { recognition.stop(); } catch (e) { console.log('Mic stop error:', e); }
-      }
-    };
-
-    utter.onend = () => {
-      console.log("[TTS] Speech end");
-      window.activeSpeechCount--;
-
-      // Only reset to idle and restart mic if NO more speech is queued
-      if (window.activeSpeechCount <= 0) {
-        window.activeSpeechCount = 0;
-
-        setStatus("idle");
-
-        // Wait a moment for the audio buffer to clear
-        setTimeout(() => {
-          // Force restart mic if voice mode or mic was manually active
-          if (micActive || currentMode === "voice") {
-            console.log("[Voice] Resuming listener...");
-            try {
-              // Sometimes synth.speaking stays true slightly longer than the audio plays
-              recognition.start();
-            } catch (e) {
-              console.log('Mic restart error:', e);
-            }
-          }
-        }, 600);
-      }
-    };
-
-    utter.onerror = (e) => {
-      console.error("[TTS] Speech error:", e.error);
-      window.activeSpeechCount--;
-      if (window.activeSpeechCount <= 0) {
-        setStatus("idle");
-        window.activeSpeechCount = 0;
-      }
-    };
-
-    synth.speak(utter);
-  }
-
-  // --- SPEECH RECOGNITION ---
-  function initSpeechRecognition() {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      console.error("[Voice] SpeechRecognition API not supported in this environment");
-      return null;
-    }
-
-    const rec = new SpeechRecognition();
-    rec.continuous = true; // Key for real-time interaction
-    rec.interimResults = true; // Required for faster barge-in detection
-
-    let silenceTimer = null;
-    let lastProcessedTranscript = "";
-
-    rec.onresult = (e) => {
-      let finalTranscript = '';
-      let interimTranscript = '';
-
-      for (let i = e.resultIndex; i < e.results.length; ++i) {
-        if (e.results[i].isFinal) {
-          finalTranscript += e.results[i][0].transcript;
-        } else {
-          interimTranscript += e.results[i][0].transcript;
-        }
-      }
-
-      // Handle Silence Detection (Barge-in / Forced Commit)
-      clearTimeout(silenceTimer);
-      if (interimTranscript.trim().length > 0) {
-        // AI-Driven Adaptive Threshold: Faster during chat, more patient for long thoughts
-        const adaptiveThreshold = interimTranscript.length > 50 ? 2500 : 1200;
-
-        silenceTimer = setTimeout(() => {
-          const transcriptToProcess = interimTranscript.trim();
-          if (transcriptToProcess !== lastProcessedTranscript) {
-            console.log(`[Voice] Silence detected (${adaptiveThreshold}ms). Committing: "${transcriptToProcess}"`);
-            lastProcessedTranscript = transcriptToProcess;
-            sendMessage(transcriptToProcess);
-            // Optional: Restart recognition to clear buffer
-            try { rec.stop(); } catch (err) { }
-          }
-        }, adaptiveThreshold);
-      }
-
-      // Only send FINAL results to the AI logic
-      if (finalTranscript && finalTranscript.trim().length > 1) {
-        lastProcessedTranscript = ""; // Reset since we got a final
-        clearTimeout(silenceTimer);
-
-        // --- ECHO CANCELLATION ---
-        const cleanInput = finalTranscript.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
-        const cleanLastSpoken = (window.lastSpokenText || '').toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
-        const isEcho = cleanLastSpoken.includes(cleanInput) || cleanInput.includes(cleanLastSpoken);
-
-        if (isEcho && cleanInput.length > 3) {
-          console.log(`[Voice] Echo Detected (Ignored): "${finalTranscript}"`);
-          return;
-        }
-
-        console.log(`[Voice] Processing Final: "${finalTranscript}"`);
-        sendMessage(finalTranscript);
-      }
-    };
-
-    rec.onstart = () => {
-      // BARGE-IN: Stop talking ONLY if we aren't already speaking (to avoid race conditions)
-      if (synth.speaking && currentMode === "voice" && !isStreaming) {
-        console.log("[Voice] Barge-in detected. Canceling speech output.");
-        synth.cancel();
-      }
-    };
-
-    rec.onerror = (e) => {
-      console.warn("[Voice] Error:", e.error);
-      if (e.error === 'no-speech') return;
-
-      // Auto-restart on error if in voice mode
-      if (currentMode === "voice" && micActive && e.error !== 'aborted') {
-        setTimeout(() => {
-          try { rec.start(); } catch (err) { }
-        }, 100);
-      }
-    };
-
-    rec.onend = () => {
-      // Auto-restart if we want the mic active and SENTINAL is not speaking
-      // Wait briefly to check synth status in case of race condition
-      setTimeout(() => {
-        if (micActive || currentMode === "voice") {
-          if (!synth.speaking) {
-            console.log("[Voice] Auto-Restarting listener...");
-            try { rec.start(); } catch (e) { }
-          } else {
-            console.log("[Voice] Listener paused during speech. Awaiting utter.onend.");
-          }
-        } else {
-          micActive = false;
-          micBtn.classList.remove("active");
-          if (statusText.textContent === "LISTENING") setStatus("idle");
-        }
-      }, 50);
-    };
-
-    return rec;
-  }
-
-  // --- EVENT LISTENERS ---
-  sendBtn.addEventListener("click", () => sendMessage(inputEl.value));
-  inputEl.addEventListener("keypress", (e) => { if (e.key === "Enter") sendMessage(inputEl.value); });
-
-  micBtn.addEventListener("click", () => {
-    if (micActive || !recognition) return;
-    micActive = true;
-    micBtn.classList.add("active");
-    setStatus("listening");
-    recognition.start();
-  });
-
-  // Voice Output Toggle
-  const voiceToggleBtn = document.getElementById("voiceToggle");
-  if (voiceToggleBtn) {
-    voiceToggleBtn.addEventListener("click", () => {
-      voiceOutputEnabled = !voiceOutputEnabled;
-      voiceToggleBtn.classList.toggle("active", voiceOutputEnabled);
-      voiceToggleBtn.textContent = voiceOutputEnabled ? "🔊" : "🔇";
-      voiceToggleBtn.title = voiceOutputEnabled ? "Voice Output: ON" : "Voice Output: OFF";
-
-      // Stop any current speech if disabling
-      if (!voiceOutputEnabled && synth) {
-        synth.cancel();
-      }
-
-      console.log(`[SENTINAL] Voice output ${voiceOutputEnabled ? 'enabled' : 'disabled'}`);
-    });
-  }
-
-  // === NOVA AI ENHANCEMENTS ===
-
-  // Voice Visualizer
-  const voiceVisualizer = document.getElementById('voiceVisualizer');
-  const waveformCanvas = document.getElementById('waveformCanvas');
-  let audioContext = null;
-  let analyser = null;
-  let animationId = null;
-
-  function initVoiceVisualizer() {
-    if (!waveformCanvas) return;
-    const ctx = waveformCanvas.getContext('2d');
-
-    // Resize with high DPI support
-    const dpr = window.devicePixelRatio || 1;
-    const rect = waveformCanvas.parentElement.getBoundingClientRect();
-    if (rect.width > 0) {
-      waveformCanvas.width = rect.width * dpr;
-      waveformCanvas.height = rect.height * dpr;
-      ctx.scale(dpr, dpr);
-    }
-
-    let phase = 0;
-
-    // Configuration for the 4 overlapping waves
-    const waves = [
-      { amplitude: 1.0, frequency: 0.02, speed: 0.08, opacity: 1.0, lineWidth: 2.5 },
-      { amplitude: 0.6, frequency: 0.03, speed: 0.12, opacity: 0.5, lineWidth: 1.5 },
-      { amplitude: 0.3, frequency: 0.045, speed: 0.16, opacity: 0.3, lineWidth: 1.0 },
-      { amplitude: 0.8, frequency: 0.015, speed: 0.05, opacity: 0.2, lineWidth: 3.0 }
+    // ═══════════════════════════════════════════════════════════
+    // DOM REFERENCES
+    // ═══════════════════════════════════════════════════════════
+
+    const $ = (id) => document.getElementById(id);
+    const $$ = (sel) => document.querySelectorAll(sel);
+
+    // ═══════════════════════════════════════════════════════════
+    // BOOT SEQUENCE
+    // ═══════════════════════════════════════════════════════════
+
+    const bootMessages = [
+        'Loading quantum core firmware...',
+        'Initializing neural pathways...',
+        'Calibrating consciousness matrix...',
+        'Probing AI providers...',
+        'Establishing socket bridge...',
+        'Loading plugin ecosystem [57 modules]...',
+        'Activating self-evolution engine...',
+        'Running integrity diagnostics...',
+        'Binding system hooks...',
+        'Initializing real-time access layer...',
+        'Core online. All systems nominal.',
     ];
 
-    function drawWaveform() {
-      // Re-measure exact CSS dimensions
-      const width = waveformCanvas.offsetWidth;
-      const height = waveformCanvas.offsetHeight;
-      const centerY = height / 2;
+    async function runBootSequence() {
+        const progressBar = $('boot-progress');
+        const statusEl = $('boot-status');
+        const logEl = $('boot-log');
 
-      // Dynamic clearing for motion blur
-      ctx.globalCompositeOperation = 'destination-out';
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.4)'; // Lower alpha for trail
-      ctx.fillRect(0, 0, width, height);
-      ctx.globalCompositeOperation = 'source-over';
+        for (let i = 0; i < bootMessages.length; i++) {
+            const msg = bootMessages[i];
+            statusEl.textContent = msg;
 
-      let audioImpact = 0;
+            const logLine = document.createElement('div');
+            logLine.className = 'log-line';
+            logLine.textContent = `[${String(i).padStart(2, '0')}] ${msg}`;
+            logEl.appendChild(logLine);
 
-      // If we have real audio data attached to the analyser
-      if (analyser) {
-        const dataArray = new Uint8Array(analyser.frequencyBinCount);
-        analyser.getByteFrequencyData(dataArray);
+            // Keep only last 5 lines visible
+            while (logEl.children.length > 5) {
+                logEl.removeChild(logEl.firstChild);
+            }
 
-        let sum = 0;
-        for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+            const progress = ((i + 1) / bootMessages.length) * 100;
+            progressBar.style.width = progress + '%';
 
-        // Normalize 0.0 to 1.0
-        const avg = sum / dataArray.length;
-        audioImpact = avg / 255.0;
-      }
-
-      // Idle state keeps a small continuous ripple; audio boosts amplitude
-      const targetAmplitude = 15 + (audioImpact * height * 0.4);
-
-      phase += 0.08 + (audioImpact * 0.1);
-
-      // Draw each overlapping wave layer
-      waves.forEach(wave => {
-        ctx.beginPath();
-        ctx.lineWidth = wave.lineWidth;
-        ctx.strokeStyle = `rgba(0, 242, 255, ${wave.opacity})`; // Cyan tint
-
-        // Optional glow
-        ctx.shadowBlur = wave.opacity > 0.6 ? 15 : 5;
-        ctx.shadowColor = '#00f2ff';
-
-        // Draw sine path
-        for (let x = 0; x < width; x += 2) {
-          // Attenuate the edges (Hanning window) so it fades out at L/R boundaries
-          const progress = x / width;
-          const window = Math.sin(progress * Math.PI);
-
-          const y = centerY + Math.sin(x * wave.frequency + phase * wave.speed) * targetAmplitude * wave.amplitude * window;
-
-          if (x === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
+            await sleep(300 + Math.random() * 400);
         }
-        ctx.stroke();
-      });
 
-      animationId = requestAnimationFrame(drawWaveform);
+        await sleep(600);
+
+        // Transition to app
+        const bootScreen = $('boot-screen');
+        bootScreen.style.transition = 'opacity 0.8s ease, transform 0.8s ease';
+        bootScreen.style.opacity = '0';
+        bootScreen.style.transform = 'scale(1.05)';
+
+        await sleep(800);
+        bootScreen.style.display = 'none';
+
+        const app = $('app');
+        app.classList.remove('hidden');
+        app.style.opacity = '0';
+        app.style.transition = 'opacity 0.5s ease';
+        requestAnimationFrame(() => { app.style.opacity = '1'; });
+
+        state.bootComplete = true;
+        initApp();
     }
 
-    if (animationId) cancelAnimationFrame(animationId);
-    drawWaveform();
-  }
+    // ═══════════════════════════════════════════════════════════
+    // APP INITIALIZATION
+    // ═══════════════════════════════════════════════════════════
 
-  // Command Palette
-  const commandPalette = document.getElementById('commandPalette');
-  const paletteInput = document.getElementById('paletteInput');
-  const paletteResults = document.getElementById('paletteResults');
-  const paletteClose = document.getElementById('paletteClose');
-
-  const quickCommands = [
-    { name: 'Where am I?', command: 'where am i', icon: '📍' },
-    { name: 'Take Screenshot', command: 'take screenshot', icon: '📸' },
-    { name: 'Show Clipboard', command: 'show clipboard', icon: '📋' },
-    { name: 'List Processes', command: 'show running processes', icon: '⚙️' },
-    { name: 'System Status', command: 'system status', icon: '💻' },
-    { name: 'Recent Files', command: 'show recent files', icon: '📁' },
-    { name: 'Weather', command: 'whats the weather', icon: '🌤️' }
-  ];
-
-  function openCommandPalette() {
-    commandPalette.classList.remove('hidden');
-    paletteInput.value = '';
-    paletteInput.focus();
-    updatePaletteResults('');
-  }
-
-  function closeCommandPalette() {
-    commandPalette.classList.add('hidden');
-  }
-
-  function updatePaletteResults(query) {
-    const filtered = query ? quickCommands.filter(cmd =>
-      cmd.name.toLowerCase().includes(query.toLowerCase()) ||
-      cmd.command.toLowerCase().includes(query.toLowerCase())
-    ) : quickCommands;
-
-    paletteResults.innerHTML = filtered.map(cmd =>
-      `<div class="palette-result-item" data-command="${cmd.command}">
-        <span style="font-size: 1.2rem; margin-right: 10px;">${cmd.icon}</span>
-        <span>${cmd.name}</span>
-      </div>`
-    ).join('');
-
-    paletteResults.querySelectorAll('.palette-result-item').forEach(item => {
-      item.addEventListener('click', () => {
-        sendMessage(item.dataset.command);
-        closeCommandPalette();
-      });
-    });
-  }
-
-  paletteInput?.addEventListener('input', (e) => updatePaletteResults(e.target.value));
-  paletteInput?.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter' && paletteInput.value.trim() !== "") {
-      const text = paletteInput.value;
-      sendMessage(text);
-      paletteInput.value = "";
-      startThinking(); // Start thought timer
-      closeCommandPalette();
+    function initApp() {
+        initSocket();
+        initNavigation();
+        initTitlebar();
+        initReactor();
+        initChat();
+        initVoice();
+        initDashboard();
+        initEvolution();
+        initSystemControl();
+        initSettings();
+        initRepair();
+        initWeather();
+        initNeural();
+        initAudioVisualizer();
+        startClock();
     }
-  });
-  paletteClose?.addEventListener('click', closeCommandPalette);
-  commandPalette?.querySelector('.palette-backdrop')?.addEventListener('click', closeCommandPalette);
 
-  // Keyboard shortcuts
-  document.addEventListener('keydown', (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-      e.preventDefault();
-      openCommandPalette();
-    }
-    if (e.key === 'Escape' && !commandPalette.classList.contains('hidden')) {
-      closeCommandPalette();
-    }
-  });
+    // ═══════════════════════════════════════════════════════════
+    // SOCKET.IO
+    // ═══════════════════════════════════════════════════════════
 
-  // Notification Toast System
-  function showToast(message, type = 'info', duration = 4000) {
-    const toastContainer = document.getElementById('toastContainer');
-    if (!toastContainer) return;
-
-    const toast = document.createElement('div');
-    toast.className = `toast ${type}`;
-    toast.innerHTML = `
-      <div class="toast-header">
-        <span class="toast-title">${type.toUpperCase()}</span>
-        <button class="toast-close">✕</button>
-      </div>
-      <div class="toast-message">${message}</div>
-    `;
-
-    toastContainer.appendChild(toast);
-
-    const closeBtn = toast.querySelector('.toast-close');
-    closeBtn.addEventListener('click', () => toast.remove());
-
-    setTimeout(() => toast.remove(), duration);
-  }
-
-  // Quick Actions
-  document.getElementById('quickLocation')?.addEventListener('click', () => sendMessage('where am i'));
-  document.getElementById('quickScreenshot')?.addEventListener('click', () => sendMessage('take screenshot'));
-  document.getElementById('quickClipboard')?.addEventListener('click', () => sendMessage('show clipboard'));
-  document.getElementById('quickProcesses')?.addEventListener('click', () => sendMessage('show running processes'));
-
-  // Enhanced voice recognition with visualizer
-  if (recognition && voiceVisualizer) {
-    recognition.addEventListener('start', () => {
-      voiceVisualizer.classList.remove('hidden');
-      initVoiceVisualizer();
-    });
-
-    recognition.addEventListener('end', () => {
-      voiceVisualizer.classList.add('hidden');
-      if (animationId) cancelAnimationFrame(animationId);
-
-      // Auto-restart in voice mode
-      if (currentMode === "voice" && isVoiceAutoListening && !isStreaming) {
-        setTimeout(() => startVoiceListening(), 500);
-      }
-    });
-  }
-
-  // Initialize
-  initVoiceVisualizer();
-
-  // === MODE SWITCHING ===
-  function setMode(mode) {
-    currentMode = mode;
-    document.body.setAttribute("data-mode", mode);
-
-    voiceModeBtn.classList.toggle("active", mode === "voice");
-    chatModeBtn.classList.toggle("active", mode === "chat");
-    modeStatus.textContent = mode === "voice" ? "VOICE MODE" : "CHAT MODE";
-
-    if (mode === "voice") {
-      startVoiceMode();
-    } else {
-      stopVoiceMode();
-    }
-  }
-
-  function startVoiceMode() {
-    isVoiceAutoListening = true;
-    updateVoiceStatus("LISTENING");
-    startVoiceListening();
-  }
-
-  function stopVoiceMode() {
-    isVoiceAutoListening = false;
-    if (recognition && micActive) {
-      recognition.stop();
-      micActive = false;
-    }
-    synth.cancel();
-  }
-
-  function startVoiceListening() {
-    if (!recognition || micActive || isStreaming) return;
-    micActive = true;
-    micBtn.classList.add("active");
-    setStatus("listening");
-    updateVoiceStatus("LISTENING");
-    recognition.start();
-  }
-
-  function updateVoiceStatus(status) {
-    const voiceLabel = document.querySelector(".voice-label");
-    const pulseRing = document.querySelector(".pulse-ring");
-
-    if (voiceLabel) voiceLabel.textContent = status;
-
-    if (pulseRing) {
-      if (status === "PROCESSING") {
-        pulseRing.style.background = "#ffcc00";
-      } else if (status === "SPEAKING") {
-        pulseRing.style.background = "#ff3b3b";
-      } else {
-        pulseRing.style.background = "#00ff88";
-      }
-    }
-  }
-
-  voiceModeBtn.addEventListener("click", () => {
-    setMode("voice");
-    setTimeout(() => {
-      vpResizeWaveform();
-      vpStartSession();
-      vpSetState('listening');
-      vpUpdateTranscript('', false, 0);
-      vpUpdateResponse('', false);
-      setTimeout(vpResizeWaveform, 100);
-      initVoiceVisualizer();
-    }, 50);
-  });
-  chatModeBtn.addEventListener("click", () => {
-    setMode("chat");
-    vpStopSession();
-  });
-
-  // ═══════════════════════════════════════════════════════
-  // VOICE PANEL CONTROLLER — wires the new voice-panel UI
-  // ═══════════════════════════════════════════════════════
-  const vpTranscript = document.getElementById('voiceTranscriptText');
-  const vpResponse = document.getElementById('voiceResponseText');
-  const vlsTextEl = document.getElementById('vlsText');
-  const vlsModeEl = document.getElementById('vlsMode');
-  const vmLatencyEl = document.getElementById('vmLatency');
-  const vmConfidenceEl = document.getElementById('vmConfidence');
-  const vmTokensEl = document.getElementById('vmTokens');
-  const vmSessionEl = document.getElementById('vmSession');
-  const tcConfEl = document.getElementById('transcriptConfidence');
-  const wCanvas = document.getElementById('waveformCanvas');
-
-  let vpSessionStart = null;
-  let vpSessionInterval = null;
-  let vpTokenCount = 0;
-  let vpResponseBuffer = '';
-  let vpResponseAnimFrame = null;
-
-  // Update the live status labels in the voice panel
-  function vpSetState(state) {
-    const map = {
-      listening: { text: 'AUDIO CAPTURE ACTIVE', mode: 'LISTENING' },
-      thinking: { text: 'NEURAL PROCESSING', mode: 'THINKING' },
-      speaking: { text: 'SYNTHESIZING RESPONSE', mode: 'SPEAKING' },
-      idle: { text: 'AWAITING ACTIVATION', mode: 'STAND BY' },
-    };
-    const cfg = map[state] || map.idle;
-    if (vlsTextEl) vlsTextEl.textContent = cfg.text;
-    if (vlsModeEl) vlsModeEl.textContent = cfg.mode;
-  }
-
-  // Update transcript in voice panel
-  function vpUpdateTranscript(text, isFinal, confidence) {
-    if (!vpTranscript) return;
-    vpTranscript.innerHTML = text
-      ? `<span class="${isFinal ? 'transcript-final' : 'transcript-interim'}">${text}</span>`
-      : `<span class="transcript-placeholder">Speak to interact with SENTINAL...</span>`;
-    if (confidence && tcConfEl) {
-      tcConfEl.textContent = `${Math.round(confidence * 100)}% CONF`;
-      if (vmConfidenceEl) vmConfidenceEl.textContent = `${Math.round(confidence * 100)}%`;
-    }
-  }
-
-  // Update SENTINAL response in voice panel
-  function vpUpdateResponse(text, isDone) {
-    if (!vpResponse) return;
-    vpResponseBuffer = text;
-    vpResponse.classList.toggle('typing', !isDone);
-    vpResponse.textContent = text || '';
-    if (!text) vpResponse.innerHTML = '<span class="response-placeholder">Awaiting your command, Sir.</span>';
-  }
-
-  // Session timer
-  function vpStartSession() {
-    vpSessionStart = Date.now();
-    vpTokenCount = 0;
-    if (vpSessionInterval) clearInterval(vpSessionInterval);
-    vpSessionInterval = setInterval(() => {
-      if (!vmSessionEl) return;
-      const elapsed = Math.floor((Date.now() - vpSessionStart) / 1000);
-      const m = String(Math.floor(elapsed / 60)).padStart(2, '0');
-      const s = String(elapsed % 60).padStart(2, '0');
-      vmSessionEl.textContent = `${m}:${s}`;
-    }, 1000);
-  }
-
-  function vpStopSession() {
-    if (vpSessionInterval) clearInterval(vpSessionInterval);
-    vpSessionInterval = null;
-  }
-
-  // Resize waveform canvas properly when voice panel becomes visible
-  function vpResizeWaveform() {
-    if (!wCanvas) return;
-    const rect = wCanvas.parentElement.getBoundingClientRect();
-    if (rect.width > 0) {
-      wCanvas.width = rect.width;
-      wCanvas.height = rect.height;
-    }
-  }
-
-  // SetStatus transitions are handled by the MutationObserver below instead.
-
-  // Hook into recognition to update transcript in panel
-  if (recognition) {
-    const _origOnResult = recognition.onresult;
-    recognition.onresult = (e) => {
-      // Update voice panel transcript
-      if (currentMode === 'voice') {
-        let interimText = '';
-        let finalText = '';
-        let bestConf = 0;
-        for (let i = e.resultIndex; i < e.results.length; i++) {
-          const r = e.results[i];
-          if (r.isFinal) { finalText += r[0].transcript; bestConf = r[0].confidence || bestConf; }
-          else { interimText += r[0].transcript; bestConf = r[0].confidence || bestConf; }
+    function initSocket() {
+        if (typeof io === 'undefined') {
+            // Load socket.io client
+            const script = document.createElement('script');
+            script.src = '/socket.io/socket.io.js';
+            script.onload = () => connectSocket();
+            script.onerror = () => {
+                console.warn('[UI] Socket.IO client not available');
+                updateConnectionStatus(false);
+            };
+            document.head.appendChild(script);
+        } else {
+            connectSocket();
         }
-        vpUpdateTranscript(finalText || interimText, !!finalText, bestConf);
-        if (finalText && vmLatencyEl) {
-          // Latency from listen → final result
-          vmLatencyEl.textContent = '< 1s';
+    }
+
+    function connectSocket() {
+        try {
+            state.socket = io({ transports: ['websocket', 'polling'] });
+
+            state.socket.on('connect', () => {
+                state.connected = true;
+                updateConnectionStatus(true);
+                console.log('[UI] Connected to SENTINAL backend');
+            });
+
+            state.socket.on('disconnect', () => {
+                state.connected = false;
+                updateConnectionStatus(false);
+            });
+
+            state.socket.on('chat:stream:token', (data) => {
+                appendToken(data.token);
+            });
+
+            state.socket.on('chat:stream:end', () => {
+                finishAssistantMessage();
+            });
+
+            state.socket.on('chat:response', (data) => {
+                // Handle non-streamed full responses
+                if (!data.streamed && !currentAssistantEl) {
+                    $('thinking-indicator').classList.add('hidden');
+                    addMessageToChat('assistant', data.message);
+                    if (state.reactor) state.reactor.setState('idle');
+                    if ($('setting-voice')?.checked && state.currentView === 'voice') {
+                        speak(data.message);
+                    }
+                }
+            });
+
+            state.socket.on('chat:error', (data) => {
+                finishAssistantMessage();
+                appendSystemMessage('Error: ' + (data.error || 'Unknown error'));
+            });
+
+            state.socket.on('status-update', (data) => {
+                if (data.mood) $('emotion-mood').textContent = data.mood;
+                if (data.thought) {
+                    $('thought-text').textContent = data.thought;
+                    // Also show in thinking panel if active
+                    if (state.currentView === 'chat' || state.currentView === 'voice') {
+                        addThinkingStep(data.thought, 'thought');
+                        if (state.neuralChat) state.neuralChat.spike();
+                        if (state.neuralVoice) state.neuralVoice.spike();
+                    }
+                }
+            });
+
+            state.socket.on('intent:detected', (data) => {
+                addThinkingStep(`Intent Recognized: ${data.intent} (${Math.round(data.confidence * 100)}%)`, 'intent');
+                if (state.neuralChat) state.neuralChat.spike();
+                if (state.neuralVoice) state.neuralVoice.spike();
+            });
+
+            state.socket.on('provider-info', (data) => {
+                updateProviderDisplay(data);
+            });
+
+            state.socket.on('system-metrics', (data) => {
+                updateSystemMetrics(data);
+            });
+
+            state.socket.on('tts:speak', (data) => {
+                if ($('setting-voice')?.checked && state.currentView === 'voice') {
+                    speak(data.text);
+                }
+            });
+
+        } catch (e) {
+            console.warn('[UI] Socket connection failed:', e);
+            updateConnectionStatus(false);
         }
-      }
-      // Call original
-      if (_origOnResult) _origOnResult.call(recognition, e);
-    };
-  }
-
-  // Track streaming response → show in voice panel
-  let _vpStreamAccum = '';
-  socket.on('chat:stream:start', () => {
-    _vpStreamAccum = '';
-    vpTokenCount = 0;
-    if (currentMode === 'voice') {
-      vpUpdateResponse('', false);
-      vpSetState('thinking');
-    }
-  });
-
-  // Add listener on streaming tokens for voice panel
-  socket.on('chat:stream:token', (data) => {
-    if (currentMode === 'voice' && data?.token) {
-      _vpStreamAccum += data.token;
-      vpTokenCount++;
-      if (vmTokensEl) vmTokensEl.textContent = vpTokenCount;
-      // Update every ~5 tokens for smooth display
-      if (vpTokenCount % 5 === 0 || data.token.includes('\n')) {
-        vpUpdateResponse(_vpStreamAccum, false);
-        vpSetState('speaking');
-      }
-    }
-  });
-
-  socket.on('chat:stream:end', () => {
-    if (currentMode === 'voice') {
-      vpUpdateResponse(_vpStreamAccum, true);
-      vpSetState('listening');
-    }
-  });
-
-  socket.on('chat:response', (data) => {
-    if (currentMode === 'voice' && data?.message) {
-      vpUpdateResponse(data.message, true);
-      vpSetState('listening');
-      vpTokenCount += (data.message.split(' ').length);
-      if (vmTokensEl) vmTokensEl.textContent = vpTokenCount;
-    }
-  });
-
-  // Wire the vpSetState into setStatus without redefining the function
-  // We patch by observing status transitions via a MutationObserver on statusText
-  if (typeof statusText !== 'undefined' && statusText) {
-    const statusObserver = new MutationObserver(() => {
-      if (currentMode !== 'voice') return;
-      const t = statusText.textContent.toLowerCase();
-      if (t.includes('listen')) vpSetState('listening');
-      else if (t.includes('process') || t.includes('think')) vpSetState('thinking');
-      else if (t.includes('respond') || t.includes('speak')) vpSetState('speaking');
-      else vpSetState('idle');
-    });
-    statusObserver.observe(statusText, { childList: true, characterData: true, subtree: true });
-  }
-
-
-
-  // === TERMINATE FUNCTIONALITY ===
-  function terminateResponse() {
-    // Stop streaming
-    if (isStreaming) {
-      isStreaming = false;
-      socket.emit("chat:abort");
     }
 
-    // Stop TTS
-    synth.cancel();
+    function updateConnectionStatus(online) {
+        const dot = $('status-dot');
+        const text = $('titlebar-status');
+        const providerPill = $('sidebar-provider');
 
-    // Stop listening
-    if (recognition && micActive) {
-      recognition.stop();
-      micActive = false;
+        if (online) {
+            dot.className = 'status-dot online';
+            text.textContent = 'Connected';
+            if (providerPill) providerPill.querySelector('.provider-dot').className = 'provider-dot online';
+        } else {
+            dot.className = 'status-dot offline';
+            text.textContent = 'Disconnected';
+            if (providerPill) providerPill.querySelector('.provider-dot').className = 'provider-dot';
+        }
     }
 
-    // Clear thunder effects
-    // if (thunderInterval) {
-    //   clearInterval(thunderInterval);
-    //   thunderInterval = null;
-    // }
-
-    setStatus("idle");
-    updateVoiceStatus("LISTENING");
-
-    // Resume listening in voice mode
-    if (currentMode === "voice" && isVoiceAutoListening) {
-      setTimeout(() => startVoiceListening(), 300);
+    function updateProviderDisplay(info) {
+        const nameEl = document.querySelector('.provider-name');
+        if (nameEl && info.current) {
+            const names = { groq: 'Groq Cloud', gemini: 'Google Gemini', ollama: 'Ollama Local', offline: 'Offline' };
+            nameEl.textContent = names[info.current] || info.current;
+        }
+        // Update settings dropdown
+        const sel = $('setting-provider');
+        if (sel && info.current && info.current !== 'offline') {
+            sel.value = info.current;
+        }
     }
 
-    console.log("[SENTINAL] Response terminated");
-  }
+    // ═══════════════════════════════════════════════════════════
+    // NAVIGATION
+    // ═══════════════════════════════════════════════════════════
 
-  voiceTerminate.addEventListener("click", terminateResponse);
-  chatTerminate.addEventListener("click", terminateResponse);
+    function initNavigation() {
+        $$('.nav-item').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const view = btn.dataset.view;
+                switchView(view);
+            });
+        });
 
-  // === INTERRUPT FEATURE ===
-  // (Removed audiostart listener because laptop speakers trigger it and cause SENTINAL to self-terminate.
-  // Real barge-ins are now handled exclusively by interim text matching in rec.onresult)
+        // Quick action buttons
+        $$('.action-btn').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const action = btn.dataset.action;
+                if (action === 'chat' || action === 'voice') {
+                    switchView(action);
+                } else if (action === 'repair') {
+                    switchView('system');
+                    setTimeout(() => runRepairScan(), 300);
+                } else if (action === 'evolve') {
+                    switchView('evolution');
+                    setTimeout(() => triggerEvolution(), 300);
+                }
+            });
+        });
+    }
 
-  // Update voice status based on SENTINAL state
-  socket.on("chat:stream:start", () => {
-    updateVoiceStatus("PROCESSING");
-  });
+    function switchView(viewId) {
+        state.currentView = viewId;
 
-  // === CAMERA REALITY SYSTEM (Restored & Enhanced) ===
-  const cameraOverlay = document.getElementById('cameraOverlay');
-  const cameraVideo = document.getElementById('cameraVideo');
-  const cameraCanvas = document.getElementById('cameraCanvas');
-  const cameraCountdown = document.getElementById('cameraCountdown');
-  const captureBtn = document.getElementById('captureBtn');
-  const closeCameraBtn = document.getElementById('closeCameraBtn');
+        // Update nav
+        $$('.nav-item').forEach((n) => n.classList.remove('active'));
+        const activeNav = document.querySelector(`.nav-item[data-view="${viewId}"]`);
+        if (activeNav) activeNav.classList.add('active');
 
-  let cameraStream = null;
+        // Update views
+        $$('.view').forEach((v) => v.classList.remove('active'));
+        const activeView = $(`view-${viewId}`);
+        if (activeView) {
+            activeView.classList.add('active');
+            activeView.style.animation = 'none';
+            requestAnimationFrame(() => { activeView.style.animation = ''; });
+        }
 
-  async function openCamera() {
-    try {
-      if (!cameraOverlay) return;
-      cameraOverlay.classList.remove('hidden');
+        // Initialize voice reactor if switching to voice
+        if (viewId === 'voice' && !state.voiceReactor) {
+            setTimeout(() => {
+                state.voiceReactor = new SentinalCore3D('voice-reactor-container');
+            }, 100);
+        }
+    }
 
-      // 1. Enumerate all devices to find the "Integrated" or "Webcam" specifically
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const videoDevices = devices.filter(device => device.kind === 'videoinput');
+    // ═══════════════════════════════════════════════════════════
+    // TITLEBAR
+    // ═══════════════════════════════════════════════════════════
 
-      console.log("[CAMERA] Available Devices:", videoDevices.map(d => d.label));
+    function initTitlebar() {
+        // Window controls (Electron IPC)
+        const ipcActions = { 'btn-minimize': 'minimize', 'btn-maximize': 'maximize', 'btn-close': 'close' };
 
-      // 2. Try to find the built-in laptop camera
-      // Keywords: "integrated", "webcam", "facetime", "internal"
-      const laptopCamera = videoDevices.find(device => {
-        const label = device.label.toLowerCase();
-        return label.includes("integrated") ||
-          label.includes("webcam") ||
-          label.includes("internal") ||
-          label.includes("hp") ||
-          label.includes("dell") ||
-          label.includes("lenovo");
-      });
+        Object.entries(ipcActions).forEach(([id, action]) => {
+            const btn = $(id);
+            if (btn) {
+                btn.addEventListener('click', () => {
+                    if (window.electronAPI && window.electronAPI[action]) {
+                        window.electronAPI[action]();
+                    }
+                });
+            }
+        });
 
-      let constraints = {
-        video: {
-          facingMode: "user",
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        },
-        audio: false
-      };
+        // Repair button
+        const repairBtn = $('btn-repair');
+        if (repairBtn) {
+            repairBtn.addEventListener('click', () => {
+                switchView('system');
+                setTimeout(() => runRepairScan(), 300);
+            });
+        }
+    }
 
-      if (laptopCamera) {
-        console.log("[CAMERA] Selecting Laptop Camera:", laptopCamera.label);
-        constraints = {
-          video: {
-            deviceId: { exact: laptopCamera.deviceId },
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
-          },
-          audio: false
+    // ═══════════════════════════════════════════════════════════
+    // 3D REACTOR
+    // ═══════════════════════════════════════════════════════════
+
+    function initReactor() {
+        setTimeout(() => {
+            const container = $('reactor-container');
+            if (container && window.SentinalCore3D) {
+                state.reactor = new SentinalCore3D(container);
+            }
+        }, 200);
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // CHAT
+    // ═══════════════════════════════════════════════════════════
+
+    let currentAssistantEl = null;
+    let currentAssistantText = '';
+
+    function initChat() {
+        const input = $('chat-input');
+        const sendBtn = $('send-btn');
+
+        const send = () => {
+            const text = input.value.trim();
+            if (!text) return;
+            sendMessage(text);
+            input.value = '';
+            input.style.height = 'auto';
         };
-      } else {
-        console.log("[CAMERA] No specific laptop camera found, using default 'user' mode details.");
-      }
 
-      console.log("[CAMERA] Requesting access with constraints:", JSON.stringify(constraints));
+        sendBtn.addEventListener('click', send);
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                send();
+            }
+        });
 
-      try {
-        cameraStream = await navigator.mediaDevices.getUserMedia(constraints);
-      } catch (e) {
-        console.warn("[CAMERA] Specific device request failed, falling back to default 'user'...", e);
-        // Fallback: Just ask for any user-facing camera
-        cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false });
-      }
-
-      if (cameraVideo) {
-        cameraVideo.srcObject = cameraStream;
-        await cameraVideo.play();
-        console.log("[CAMERA] Stream active and playing.");
-
-        // Start periodic empathy analysis
-        startEmpathyCycle();
-      }
-
-      speak("Visual sensors online.");
-    } catch (err) {
-      console.error("[CAMERA] Access error:", err);
-      speak("Unable to access the primary camera. Please check your device settings.");
-      if (cameraOverlay) cameraOverlay.classList.add('hidden');
-    }
-  }
-
-  function closeCamera() {
-    if (cameraStream) {
-      cameraStream.getTracks().forEach(track => track.stop());
-      cameraStream = null;
-    }
-    if (cameraVideo) cameraVideo.srcObject = null;
-    if (cameraOverlay) cameraOverlay.classList.add('hidden');
-    if (cameraCountdown) cameraCountdown.classList.add('hidden');
-  }
-
-  async function takePicture() {
-    if (!cameraStream) return;
-    if (!cameraCountdown || !cameraCanvas || !cameraVideo) return;
-
-    // Countdown
-    cameraCountdown.classList.remove('hidden');
-    const countSequence = ['3', '2', '1'];
-
-    for (const count of countSequence) {
-      cameraCountdown.textContent = count;
-      speak(count);
-      await new Promise(r => setTimeout(r, 1000));
+        // Auto-resize textarea
+        input.addEventListener('input', () => {
+            input.style.height = 'auto';
+            input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+        });
     }
 
-    cameraCountdown.classList.add('hidden');
+    function sendMessage(text) {
+        // Add user message
+        addMessageToChat('user', text);
 
-    // Capture
-    cameraCanvas.width = cameraVideo.videoWidth;
-    cameraCanvas.height = cameraVideo.videoHeight;
-    const ctx = cameraCanvas.getContext('2d');
+        // Remove welcome screen
+        const welcome = document.querySelector('.chat-welcome');
+        if (welcome) welcome.remove();
 
-    // Mirror effect for user experience
-    ctx.translate(cameraVideo.videoWidth, 0);
-    ctx.scale(-1, 1);
-    ctx.drawImage(cameraVideo, 0, 0, cameraVideo.videoWidth, cameraVideo.videoHeight);
+        // Show thinking
+        $('thinking-indicator').classList.remove('hidden');
+        $('stop-chat-btn')?.classList.remove('hidden');
+        clearThinking();
+        addThinkingStep(`Processing request: "${text.slice(0, 30)}..."`, 'info');
+        if (state.reactor) state.reactor.setState('processing');
 
-    // Convert to Base64
-    const imageData = cameraCanvas.toDataURL('image/jpeg', 0.9);
-
-    // Close camera immediately after capture
-    closeCamera();
-
-    // Send to backend
-    socket.emit("camera:capture", { imageData });
-
-    speak("Image captured.");
-  }
-
-  // Handle manual buttons
-  if (captureBtn) captureBtn.addEventListener('click', takePicture);
-  if (closeCameraBtn) closeCameraBtn.addEventListener('click', closeCamera);
-
-  if (hackerModeBtn) {
-    hackerModeBtn.addEventListener('click', () => {
-      openDashboard();
-    });
-  }
-
-  // Expose to window for external calls if needed (though we use local functions here)
-  window.openCamera = openCamera;
-  window.closeCamera = closeCamera;
-
-  // --- EMPATHIC SENSING LOGIC ---
-  let empathyInterval = null;
-
-  function startEmpathyCycle() {
-    if (empathyInterval) clearInterval(empathyInterval);
-    // Initial check after 2 seconds
-    setTimeout(captureFaceForEmotion, 2000);
-    // Periodic check every 5 minutes
-    empathyInterval = setInterval(captureFaceForEmotion, 5 * 60 * 1000);
-  }
-
-  async function captureFaceForEmotion() {
-    if (!cameraStream || !cameraVideo || !cameraCanvas) return;
-
-    console.log("[EMPATHY] Capturing face for emotional sensing...");
-
-    const context = cameraCanvas.getContext('2d');
-    cameraCanvas.width = cameraVideo.videoWidth;
-    cameraCanvas.height = cameraVideo.videoHeight;
-    context.drawImage(cameraVideo, 0, 0, cameraCanvas.width, cameraCanvas.height);
-
-    const imageData = cameraCanvas.toDataURL('image/jpeg', 0.6).split(',')[1];
-
-    socket.emit("camera:face_emotion", { imageData });
-  }
-
-  // Trigger empathy check on interaction end
-  socket.on("chat:stream:end", () => {
-    // Occasionally check emotion after a conversation
-    if (Math.random() < 0.3) setTimeout(captureFaceForEmotion, 1000);
-  });
-
-
-  socket.on("tts:speak", () => {
-    updateVoiceStatus("SPEAKING");
-  });
-
-  socket.on("chat:stream:end", () => {
-    if (currentMode === "voice") {
-      setTimeout(() => {
-        updateVoiceStatus("LISTENING");
-        if (isVoiceAutoListening && !synth.speaking) {
-          startVoiceListening();
+        // Send via socket
+        if (state.socket && state.connected) {
+            state.socket.emit('chat:message', { message: text });
+        } else {
+            // Fallback to REST
+            fetch('/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: text }),
+            })
+                .then((r) => r.json())
+                .then((data) => {
+                    $('thinking-indicator').classList.add('hidden');
+                    addMessageToChat('assistant', data.response || data.error || 'No response');
+                    if (state.reactor) state.reactor.setState('idle');
+                })
+                .catch((err) => {
+                    $('thinking-indicator').classList.add('hidden');
+                    $('stop-chat-btn')?.classList.add('hidden');
+                    appendSystemMessage('Connection error: ' + err.message);
+                    if (state.reactor) state.reactor.setState('idle');
+                });
         }
-      }, 1000);
-    }
-  });
-
-
-  // === CYBER SECURITY MODULE (DASHBOARD) ===
-  const hackerDashboard = document.getElementById('hackerDashboard');
-  const consoleOutput = document.getElementById('consoleOutput');
-  const consoleInput = document.getElementById('consoleInput');
-  const closeDashBtn = document.getElementById('closeDashBtn');
-  const matrixBg = document.getElementById('matrixBg');
-  const deviceList = document.getElementById('deviceList');
-  let matrixInterval = null;
-
-  socket.on('security:activate', (data) => {
-    openDashboard(data.mode);
-  });
-
-  socket.on('security:output', (data) => {
-    openDashboard();
-    printToConsole(data.content, data.type);
-
-    // Update specific panels if data type matches
-    if (data.type === 'local_scan' || data.type === 'wifi_scan') {
-      updateNetworkPanel(data.content);
-    }
-  });
-
-  // --- THREAT MAP VISUALIZATION ---
-  const threatCanvas = document.getElementById('threatMapCanvas');
-  let threatCtx = null;
-  let threatInterval = null;
-  const threats = [];
-
-  function initThreatMap() {
-    if (!threatCanvas) return;
-    threatCanvas.width = threatCanvas.parentElement.offsetWidth;
-    threatCanvas.height = threatCanvas.parentElement.offsetHeight;
-    threatCtx = threatCanvas.getContext('2d');
-
-    // Generate random initial threats
-    for (let i = 0; i < 5; i++) spawnThreat();
-  }
-
-  function spawnThreat() {
-    if (!threatCanvas) return;
-    threats.push({
-      x: Math.random() * threatCanvas.width,
-      y: Math.random() * threatCanvas.height,
-      life: 100,
-      color: Math.random() > 0.8 ? '#ff0000' : '#ffaa00'
-    });
-  }
-
-  function drawThreatMap() {
-    if (!threatCtx) return;
-    // Fade out trail
-    threatCtx.fillStyle = 'rgba(0, 20, 30, 0.1)';
-    threatCtx.fillRect(0, 0, threatCanvas.width, threatCanvas.height);
-
-    // Draw Grid
-    threatCtx.strokeStyle = 'rgba(0, 239, 255, 0.05)';
-    threatCtx.lineWidth = 1;
-
-    // Update Threats
-    for (let i = threats.length - 1; i >= 0; i--) {
-      const t = threats[i];
-      t.life--;
-
-      // Draw target
-      threatCtx.beginPath();
-      threatCtx.strokeStyle = t.color;
-      threatCtx.arc(t.x, t.y, 20 - (t.life / 5), 0, Math.PI * 2);
-      threatCtx.stroke();
-
-      // Draw connecting line
-      if (i > 0) {
-        const prev = threats[i - 1];
-        threatCtx.beginPath();
-        threatCtx.strokeStyle = `rgba(255, 50, 50, ${t.life / 100})`;
-        threatCtx.moveTo(t.x, t.y);
-        threatCtx.lineTo(prev.x, prev.y);
-        threatCtx.stroke();
-      }
-
-      if (t.life <= 0) threats.splice(i, 1);
     }
 
-    // Randomly spawn new
-    if (Math.random() > 0.95) spawnThreat();
+    function addMessageToChat(role, content) {
+        const container = $('chat-messages');
+        const msg = document.createElement('div');
+        msg.className = `message ${role}`;
 
-    // Text update
-    const countEl = document.getElementById('threatCount');
-    if (countEl) countEl.textContent = threats.length;
-  }
+        const avatar = document.createElement('div');
+        avatar.className = 'message-avatar';
+        avatar.textContent = role === 'user' ? 'U' : 'S';
 
-  function startThreatSimulation() {
-    initThreatMap();
-    if (threatInterval) clearInterval(threatInterval);
-    threatInterval = setInterval(drawThreatMap, 50);
-  }
+        const contentEl = document.createElement('div');
+        contentEl.className = 'message-content';
+        contentEl.innerHTML = parseMarkdown(content);
 
-  function stopThreatSimulation() {
-    if (threatInterval) clearInterval(threatInterval);
-  }
+        msg.appendChild(avatar);
+        msg.appendChild(contentEl);
+        container.appendChild(msg);
+        container.scrollTop = container.scrollHeight;
 
-  function openDashboard(mode = 'idle') {
-    if (hackerDashboard) {
-      hackerDashboard.classList.remove('hidden');
-      startThreatSimulation(); // Start Map
-      if (consoleInput) setTimeout(() => consoleInput.focus(), 100);
-
-      // Handle Illegal Mode
-      if (mode === 'illegal') {
-        hackerDashboard.classList.add('illegal-mode');
-        printToConsole("WARNING: ROOT ACCESS GRANTED. ILLEGAL MODE ACTIVE.", 'warning');
-      } else {
-        hackerDashboard.classList.remove('illegal-mode');
-      }
+        return msg;
     }
-    if (mode !== 'idle') printToConsole(`System Access Granted. Mode: ${mode.toUpperCase()}`);
 
-    startMatrixEffect();
-  }
-
-  function closeDashboard() {
-    if (hackerDashboard) hackerDashboard.classList.add('hidden');
-    stopMatrixEffect();
-    stopThreatSimulation(); // Stop Map
-  }
-
-  if (closeDashBtn) {
-    closeDashBtn.addEventListener('click', closeDashboard);
-  }
-
-  // CLI Input Handling
-  if (consoleInput) {
-    consoleInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        const cmd = consoleInput.value.trim();
-        if (cmd) {
-          printToConsole(`root@sentinal:~# ${cmd}`);
-          // Send as chat message
-          socket.emit('chat:message', { message: cmd });
-          consoleInput.value = '';
-        }
-      }
-    });
-  }
-
-  // Toolbox Button Handling
-  document.querySelectorAll('.hack-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const cmd = btn.dataset.cmd;
-      if (cmd) {
-        // Intercept Root Access for immediate visual feedback
-        if (btn.id === 'rootAccessBtn') {
-          openDashboard('illegal');
-          return;
+    function appendToken(token) {
+        if (token && typeof token === 'object' && token.isThought) {
+            // It's a thinking token (internal reasoning)
+            addThinkingToken(token.token);
+            if (state.neuralChat) state.neuralChat.spike();
+            if (state.neuralVoice) state.neuralVoice.spike();
+            return;
         }
 
-        printToConsole(`Executing: ${cmd}...`);
-        socket.emit('chat:message', { message: cmd });
-      }
-    });
-  });
+        if (!currentAssistantEl) {
+            // First token - create message element
+            $('thinking-indicator').classList.add('hidden');
+            if (state.reactor) state.reactor.setState('speaking');
 
-  function printToConsole(text, type) {
-    if (!consoleOutput) return;
+            const container = $('chat-messages');
+            currentAssistantEl = document.createElement('div');
+            currentAssistantEl.className = 'message assistant';
 
-    // Check for AI Analysis separator
-    const parts = text.split('=== 🧠 SYSTEM ANALYSIS ===');
-    const mainText = parts[0];
-    const analysisText = parts[1];
+            const avatar = document.createElement('div');
+            avatar.className = 'message-avatar';
+            avatar.textContent = 'S';
 
-    // Print main text normally
-    if (mainText.trim()) {
-      const lines = mainText.split('\n');
-      lines.forEach(line => {
+            const contentEl = document.createElement('div');
+            contentEl.className = 'message-content';
+
+            currentAssistantEl.appendChild(avatar);
+            currentAssistantEl.appendChild(contentEl);
+            container.appendChild(currentAssistantEl);
+            currentAssistantText = '';
+        }
+
+        const actualToken = (typeof token === 'string') ? token : (token.token || '');
+        currentAssistantText += actualToken;
+        const contentEl = currentAssistantEl.querySelector('.message-content');
+        contentEl.innerHTML = parseMarkdown(currentAssistantText);
+
+        if (state.neuralChat) state.neuralChat.spike();
+        if (state.neuralVoice) state.neuralVoice.spike();
+
+        const container = $('chat-messages');
+        container.scrollTop = container.scrollHeight;
+    }
+
+    function addThinkingToken(token) {
+        const panel = $('thinking-process-panel');
+        if (panel && panel.classList.contains('hidden')) {
+            panel.classList.remove('hidden');
+        }
+        
+        let stepsEl = $('thinking-steps');
+        let currentStep = stepsEl.querySelector('.thinking-step.active-thought');
+        
+        if (!currentStep) {
+            currentStep = document.createElement('div');
+            currentStep.className = 'thinking-step active-thought';
+            currentStep.innerHTML = '<span class="step-bullet"></span><span class="step-text"></span>';
+            stepsEl.appendChild(currentStep);
+        }
+        
+        const textEl = currentStep.querySelector('.step-text');
+        textEl.textContent += token;
+        
+        panel.scrollTop = panel.scrollHeight;
+    }
+
+    function addThinkingStep(text, type) {
+        const panel = $('thinking-process-panel');
+        if (panel && panel.classList.contains('hidden') && state.bootComplete) {
+            panel.classList.remove('hidden');
+        }
+
+        const stepsEl = $('thinking-steps');
+        const step = document.createElement('div');
+        step.className = `thinking-step ${type || ''}`;
+        step.innerHTML = `<span class="step-bullet"></span><span class="step-text">${text}</span>`;
+        
+        // Remove active class from previous
+        stepsEl.querySelectorAll('.active-thought').forEach(s => s.classList.remove('active-thought'));
+        
+        stepsEl.appendChild(step);
+        panel.scrollTop = panel.scrollHeight;
+
+        if (state.neuralChat) state.neuralChat.spike();
+        if (state.neuralVoice) state.neuralVoice.spike();
+    }
+
+    function clearThinking() {
+        $('thinking-steps').innerHTML = '';
+        $('thinking-process-panel')?.classList.add('hidden');
+    }
+
+    function finishAssistantMessage() {
+        if (currentAssistantEl) {
+            const contentEl = currentAssistantEl.querySelector('.message-content');
+            contentEl.innerHTML = parseMarkdown(currentAssistantText);
+        }
+        currentAssistantEl = null;
+        currentAssistantText = '';
+        $('thinking-indicator').classList.add('hidden');
+        $('stop-chat-btn')?.classList.add('hidden');
+        $('thinking-process-panel')?.classList.add('hidden');
+        if (state.reactor) state.reactor.setState('idle');
+
+        // TTS (Only in Voice View)
+        if ($('setting-voice')?.checked && currentAssistantText && state.currentView === 'voice') {
+            speak(currentAssistantText);
+        }
+    }
+
+    function appendSystemMessage(text) {
+        const container = $('chat-messages');
+        const msg = document.createElement('div');
+        msg.className = 'message assistant';
+        msg.innerHTML = `<div class="message-avatar" style="background:rgba(239,68,68,0.2);border-color:rgba(239,68,68,0.3);color:var(--accent-red)">!</div><div class="message-content" style="border-color:rgba(239,68,68,0.2)">${escapeHtml(text)}</div>`;
+        container.appendChild(msg);
+        container.scrollTop = container.scrollHeight;
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // MARKDOWN PARSER (lightweight)
+    // ═══════════════════════════════════════════════════════════
+
+    function parseMarkdown(text) {
+        if (!text) return '';
+        let html = escapeHtml(text);
+
+        // Code blocks
+        html = html.replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>');
+        // Inline code
+        html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+        // Bold
+        html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+        // Italic
+        html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+        // Headers
+        html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+        html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+        html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+        // Lists
+        html = html.replace(/^- (.+)$/gm, '<li>$1</li>');
+        html = html.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
+        // Paragraphs
+        html = html.replace(/\n\n/g, '</p><p>');
+        html = '<p>' + html + '</p>';
+        // Clean empty paragraphs
+        html = html.replace(/<p>\s*<\/p>/g, '');
+        // Line breaks
+        html = html.replace(/\n/g, '<br>');
+
+        return html;
+    }
+
+    function escapeHtml(text) {
         const div = document.createElement('div');
-        div.className = 'line';
-        if (type === 'warning') div.style.color = '#ff0000';
-        div.textContent = `> ${line}`;
-        consoleOutput.insertBefore(div, consoleOutput.lastElementChild);
-      });
+        div.textContent = text;
+        return div.innerHTML;
     }
 
-    // Print AI Analysis with special typing effect
-    if (analysisText) {
-      const div = document.createElement('div');
-      div.className = 'line analysis-block';
-      div.style.color = '#00ffff';
-      div.style.marginTop = '10px';
-      div.style.padding = '10px';
-      div.style.border = '1px dashed #00ffff';
-      div.innerHTML = `<strong>[AI INTELLIGENCE]</strong><br>`;
-      consoleOutput.insertBefore(div, consoleOutput.lastElementChild);
+    // ═══════════════════════════════════════════════════════════
+    // VOICE
+    // ═══════════════════════════════════════════════════════════
 
-      let i = 0;
-      const typingSpeed = 10;
-      const rawText = analysisText.trim();
+    function initVoice() {
+        const btn = $('voice-btn');
+        if (!btn) return;
 
-      function typeWriter() {
-        if (i < rawText.length) {
-          div.innerHTML += rawText.charAt(i) === '\n' ? '<br>' : rawText.charAt(i);
-          i++;
-          consoleOutput.scrollTop = consoleOutput.scrollHeight;
-          setTimeout(typeWriter, typingSpeed);
+        btn.addEventListener('click', toggleVoice);
+
+        // Speech recognition setup
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (SpeechRecognition) {
+            state.recognition = new SpeechRecognition();
+            state.recognition.continuous = true;
+            state.recognition.interimResults = true;
+            state.recognition.lang = 'en-US';
+
+            state.recognition.onresult = (e) => {
+                let transcript = '';
+                for (let i = e.resultIndex; i < e.results.length; i++) {
+                    transcript += e.results[i][0].transcript;
+                }
+                $('voice-transcript').textContent = transcript;
+
+                // If final result
+                if (e.results[e.results.length - 1].isFinal) {
+                    setTimeout(() => {
+                        if (transcript.trim()) {
+                            sendMessage(transcript.trim());
+                            // Stop recognition to allow AI to speak, but stay in Voice Mode
+                            stopVoice();
+                        }
+                    }, 500);
+                }
+            };
+
+            state.recognition.onend = () => {
+                if (state.isListening) {
+                    try { state.recognition.start(); } catch (e) { /* ignore */ }
+                }
+            };
+
+            state.recognition.onerror = (e) => {
+                console.warn('[Voice] Recognition error:', e.error);
+                if (e.error === 'not-allowed') {
+                    $('voice-status').textContent = 'Microphone access denied';
+                }
+            };
         }
-      }
-      typeWriter();
     }
 
-    consoleOutput.scrollTop = consoleOutput.scrollHeight;
-  }
-
-  function updateNetworkPanel(content) {
-    if (!deviceList) return;
-    deviceList.innerHTML = '';
-    const lines = content.split('\n');
-    lines.forEach(line => {
-      if (!line.trim()) return;
-      const div = document.createElement('div');
-      div.className = 'device-item';
-      div.textContent = line;
-      deviceList.appendChild(div);
-    });
-  }
-
-  function startMatrixEffect() {
-    if (matrixInterval) clearInterval(matrixInterval); // Restart to apply color change
-
-    const canvas = document.createElement('canvas');
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-    matrixBg.innerHTML = '';
-    matrixBg.appendChild(canvas);
-    const ctx = canvas.getContext('2d');
-
-    const chars = "01010101ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-    const columns = canvas.width / 20;
-    const drops = Array(Math.floor(columns)).fill(1);
-
-    // Check for Illegal Mode
-    const isIllegal = hackerDashboard && hackerDashboard.classList.contains('illegal-mode');
-    const color = isIllegal ? "#FF0000" : "#0F0";
-
-    matrixInterval = setInterval(() => {
-      ctx.fillStyle = "rgba(0, 0, 0, 0.05)";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = color;
-      ctx.font = "15px monospace";
-
-      drops.forEach((y, i) => {
-        const text = chars[Math.floor(Math.random() * chars.length)];
-        ctx.fillText(text, i * 20, y * 20);
-        if (y * 20 > canvas.height && Math.random() > 0.975) drops[i] = 0;
-        drops[i]++;
-      });
-    }, 50);
-  }
-
-  // --- DDoS SIMULATION (VISUAL ONLY) ---
-  socket.on('security:activate', (data) => {
-    if (data.mode === 'simulation_flood') {
-      startFloodSimulation(data.target);
-    } else {
-      openDashboard(data.mode);
+    function toggleVoice() {
+        if (state.isListening) {
+            stopVoice();
+        } else {
+            startVoice();
+        }
     }
-  });
 
-  function startFloodSimulation(target) {
-    openDashboard('illegal'); // Force illegal mode visuals
-    printToConsole(`[SIMULATION] TARGET: ${target}`, 'warning');
-    printToConsole(`[SIMULATION] LAUNCHING ORBITAL ION CANNON (LOIC) PROTOCOL...`, 'warning');
+    async function startVoice() {
+        if (!state.recognition) return;
+        state.isListening = true;
+        $('voice-btn').classList.add('active');
+        $('voice-status').textContent = 'Listening...';
+        $('voice-status').className = 'voice-status listening';
+        $('voice-transcript').textContent = '';
 
-    let packets = 0;
-    const protocols = ['UDP', 'TCP-SYN', 'HTTP-GET', 'ICMP'];
+        if (state.voiceReactor) state.voiceReactor.setState('listening');
 
-    const floodInterval = setInterval(() => {
-      packets += Math.floor(Math.random() * 500) + 100;
-      const proto = protocols[Math.floor(Math.random() * protocols.length)];
-      const size = Math.floor(Math.random() * 1500) + 64;
-      const src = `192.168.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`;
+        // Setup audio visualizer stream
+        await setupAudioStream();
 
-      const log = `[${proto}] ${src} -> ${target} | Len:${size} | Seq=${packets}`;
+        try { state.recognition.start(); } catch (e) { /* already started */ }
+    }
 
-      // Direct DOM manipulation for speed
-      const div = document.createElement('div');
-      div.className = 'line';
-      div.style.color = '#ff0000';
-      div.style.fontSize = '12px';
-      div.textContent = log;
-      consoleOutput.appendChild(div);
-      consoleOutput.scrollTop = consoleOutput.scrollHeight;
+    function stopVoice() {
+        state.isListening = false;
+        $('voice-btn').classList.remove('active');
+        $('voice-status').textContent = 'Tap to speak';
+        $('voice-status').className = 'voice-status';
 
-      // Random "Server Status" updates
-      if (packets % 2000 > 1800) {
-        const statusDiv = document.createElement('div');
-        statusDiv.className = 'line';
-        statusDiv.style.background = '#ff0000';
-        statusDiv.style.color = '#000';
-        statusDiv.style.fontWeight = 'bold';
-        statusDiv.textContent = `>>> TARGET SERVER LOAD: ${Math.floor(Math.random() * 20) + 80}% [CRITICAL]`;
-        consoleOutput.appendChild(statusDiv);
-      }
+        if (state.voiceReactor) state.voiceReactor.setState('idle');
 
-    }, 50); // Fast scroll
+        try { state.recognition.stop(); } catch (e) { /* ignore */ }
+    }
 
-    // Stop after 10 seconds
-    setTimeout(() => {
-      clearInterval(floodInterval);
-      printToConsole(`[SIMULATION] ATTACK STOPPED. PACKETS SENT: ${packets}`, 'warning');
-      printToConsole(`[SIMULATION] TARGET STATUS: 503 SERVICE UNAVAILABLE (SIMULATED)`, 'warning');
-    }, 10000);
-  }
+    function speak(text) {
+        if (!state.synthesis || !$('setting-voice')?.checked) return;
 
-  function stopMatrixEffect() {
-    if (matrixInterval) clearInterval(matrixInterval);
-    matrixInterval = null;
-    if (matrixBg) matrixBg.innerHTML = '';
-  }
+        // Strip markdown
+        const clean = text.replace(/[#*`_\[\]()]/g, '').replace(/<[^>]*>/g, '');
+        if (!clean.trim()) return;
 
-  /* --- REPAIR MODE LOGIC (POPUP) --- */
-  const repairModeBtn = document.getElementById('repairModeBtn');
+        const utterance = new SpeechSynthesisUtterance(clean);
+        utterance.rate = parseFloat($('setting-tts-rate')?.value || '1');
+        utterance.pitch = 1;
+        utterance.volume = 1;
 
-  if (repairModeBtn) {
-    repairModeBtn.addEventListener('click', () => {
-      sfx.playClick();
-      // Open in a new dedicated window
-      window.open('repair.html', 'SentinalRepair', 'width=1000,height=800,menubar=no,toolbar=no,location=no,status=no,resizable=yes');
+        utterance.onstart = () => {
+            state.isSpeaking = true;
+            if (state.reactor) state.reactor.setState('speaking');
+            $('stop-voice-btn')?.classList.remove('hidden');
+            
+            // Auto-stop listening while speaking to avoid feedback
+            if (state.isListening) {
+                state.wasListeningBeforeSpeech = true;
+                stopVoice();
+            } else {
+                state.wasListeningBeforeSpeech = false;
+            }
+        };
+        utterance.onend = () => {
+            state.isSpeaking = false;
+            if (state.reactor) state.reactor.setState('idle');
+            $('stop-voice-btn')?.classList.add('hidden');
+            
+            // Auto-resume listening if we were listening before
+            if (state.wasListeningBeforeSpeech && state.currentView === 'voice') {
+                startVoice();
+            }
+        };
+
+        state.synthesis.cancel();
+        state.synthesis.speak(utterance);
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // DASHBOARD
+    // ═══════════════════════════════════════════════════════════
+
+    function initDashboard() {
+        // Simulated metrics update
+        updateMetrics();
+        setInterval(updateMetrics, 3000);
+    }
+
+    function updateMetrics() {
+        // Simulated values (real values come from socket system-metrics events)
+        const cpu = 15 + Math.random() * 30;
+        const mem = 40 + Math.random() * 20;
+        const disk = 55 + Math.random() * 10;
+
+        updateMetricRing('cpu-metric', cpu, `${Math.round(cpu)}%`);
+        $('cpu-value').textContent = `${Math.round(cpu)}%`;
+
+        updateMetricRing('mem-metric', mem, `${Math.round(mem)}%`);
+        $('mem-value').textContent = `${Math.round(mem)}%`;
+
+        $('net-value').textContent = state.connected ? 'OK' : '--';
+        updateMetricRing('net-metric', state.connected ? 90 : 0);
+
+        updateMetricRing('disk-metric', disk, `${Math.round(disk)}%`);
+        $('disk-value').textContent = `${Math.round(disk)}%`;
+    }
+
+    function updateMetricRing(cardId, percent) {
+        const card = $(cardId);
+        if (!card) return;
+        const fill = card.querySelector('.metric-ring-fill');
+        if (fill) {
+            fill.setAttribute('stroke-dasharray', `${percent} ${100 - percent}`);
+        }
+    }
+
+    function updateSystemMetrics(data) {
+        if (data.cpu !== undefined) {
+            updateMetricRing('cpu-metric', data.cpu);
+            $('cpu-value').textContent = `${Math.round(data.cpu)}%`;
+        }
+        if (data.memory !== undefined) {
+            updateMetricRing('mem-metric', data.memory);
+            $('mem-value').textContent = `${Math.round(data.memory)}%`;
+        }
+    }
+
+    function startClock() {
+        function update() {
+            const now = new Date();
+            const time = now.toLocaleTimeString('en-US', { hour12: false });
+            const date = now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+            const el = $('dash-clock');
+            if (el) el.textContent = `${date}  ${time}`;
+        }
+        update();
+        setInterval(update, 1000);
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // WEATHER
+    // ═══════════════════════════════════════════════════════════
+
+    async function initWeather() {
+        const weatherCity = $('weather-city');
+        const weatherTemp = $('weather-temp');
+        const weatherDesc = $('weather-desc');
+        const weatherHumidity = $('weather-humidity');
+        const weatherWind = $('weather-wind');
+
+        if (!weatherCity) return;
+
+        try {
+            let city = '';
+            
+            // Try browser geolocation first
+            if (navigator.geolocation) {
+                try {
+                    const pos = await new Promise((resolve, reject) => {
+                        navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 });
+                    });
+                    // If we have coords, we'll let our proxy handle them
+                    const res = await fetch(`/api/weather?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}`);
+                    const data = await res.json();
+                    
+                    const current = data.current_condition[0];
+                    const area = data.nearest_area[0];
+                    city = area.areaName[0].value;
+                    
+                    weatherCity.textContent = city;
+                    weatherTemp.textContent = `${current.temp_C}°C`;
+                    weatherDesc.textContent = current.weatherDesc[0].value;
+                    weatherHumidity.textContent = current.humidity;
+                    weatherWind.textContent = current.windspeedKmph;
+                    return; // Done
+                } catch (geoErr) {
+                    console.log('[Weather] Geolocation failed or denied, falling back to IP detection');
+                }
+            }
+
+            // Fallback: Use proxy's auto-IP detection (no lat/lon parameters)
+            const res = await fetch(`/api/weather`);
+            const data = await res.json();
+
+            const current = data.current_condition[0];
+            const area = data.nearest_area[0];
+            city = area.areaName[0].value;
+
+            weatherCity.textContent = city;
+            weatherTemp.textContent = `${current.temp_C}°C`;
+            weatherDesc.textContent = current.weatherDesc[0].value;
+            weatherHumidity.textContent = current.humidity;
+            weatherWind.textContent = current.windspeedKmph;
+
+        } catch (e) {
+            console.warn('[Weather] Sync failed:', e);
+            weatherCity.textContent = 'Sync Error';
+            weatherDesc.textContent = 'Environmental data unavailable';
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // EVOLUTION
+    // ═══════════════════════════════════════════════════════════
+
+    function initEvolution() {
+        const triggerBtn = $('evo-trigger');
+        if (triggerBtn) {
+            triggerBtn.addEventListener('click', triggerEvolution);
+        }
+        loadEvolutionLog();
+    }
+
+    async function triggerEvolution() {
+        addEvoLog('Initiating evolution cycle...', 'info');
+
+        let res;
+        try {
+            res = await fetch('/api/evolution/trigger', { method: 'POST' });
+        } catch (e) {
+            addEvoLog('Evolution API not reachable - check backend status', 'error');
+            return;
+        }
+
+        const data = await readJsonSafe(res);
+        if (!res.ok) {
+            const msg = data?.error || data?.message || res.statusText || 'Request failed';
+            addEvoLog(`Evolution failed: ${msg}`, 'error');
+            return;
+        }
+
+        const payload = (data && data.result) ? data.result : (data || {});
+        const success = (payload.success !== undefined) ? payload.success : Boolean(data?.success ?? data?.ok);
+
+        if (success) {
+            addEvoLog('Evolution cycle completed successfully', 'success');
+            const detail = formatEvolutionEntry(payload);
+            if (detail) addEvoLog(detail, 'info', payload.timestamp);
+            if (payload.note) addEvoLog(payload.note, 'info', payload.timestamp);
+        } else {
+            const msg = payload.message || payload.error || data?.message || 'No changes needed';
+            addEvoLog('Evolution cycle: ' + msg, 'info');
+        }
+
+        const hasStats = data && (data.generation !== undefined || data.fitness !== undefined || data.mutations !== undefined);
+        if (data?.generation !== undefined) $('evo-generation').textContent = `Gen ${data.generation}`;
+        if (data?.fitness !== undefined) $('evo-fitness').textContent = `${data.fitness}`;
+        if (data?.mutations !== undefined) $('evo-mutations').textContent = `${data.mutations}`;
+
+        await loadEvolutionLog({ skipStats: hasStats });
+    }
+
+    async function loadEvolutionLog(options = {}) {
+        const logEl = $('evo-log');
+        if (!logEl) return false;
+        const { skipStats = false } = options;
+
+        try {
+            const res = await fetch('/api/evolution/log');
+            if (!res.ok) return false;
+            const data = await res.json();
+            if (!Array.isArray(data)) return false;
+
+            logEl.innerHTML = '';
+            if (data.length === 0) {
+                addEvoLog('Evolution engine standing by...');
+                return true;
+            }
+
+            const entries = data.slice().reverse();
+            entries.forEach((entry) => {
+                const message = formatEvolutionEntry(entry);
+                if (message) {
+                    addEvoLog(message, entry.success ? 'success' : 'error', entry.timestamp);
+                }
+            });
+
+            if (!skipStats) updateEvolutionStatsFromLog(data);
+            return true;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    function updateEvolutionStatsFromLog(log) {
+        if (!Array.isArray(log) || log.length === 0) return;
+        const total = log.length;
+        const successes = log.filter((entry) => entry && entry.success).length;
+        $('evo-generation').textContent = `Gen ${total}`;
+        $('evo-fitness').textContent = `${Math.round((successes / total) * 100)}%`;
+        $('evo-mutations').textContent = `${successes}`;
+    }
+
+    function formatEvolutionEntry(entry) {
+        if (!entry) return '';
+        if (entry.success === false) {
+            return `Evolution failed: ${entry.error || entry.message || 'Unknown error'}`;
+        }
+
+        const parts = [];
+        if (entry.capability) parts.push(`Target: ${entry.capability}`);
+        if (entry.newPlugin) parts.push(`Staged: ${entry.newPlugin}`);
+        if (Array.isArray(entry.dependencies) && entry.dependencies.length > 0) {
+            parts.push(`Deps: ${entry.dependencies.join(', ')}`);
+        }
+        if (entry.duration) parts.push(`Duration: ${entry.duration}s`);
+        if (entry.stagedPath) parts.push(`Path: ${entry.stagedPath}`);
+        if (entry.note) parts.push(entry.note);
+
+        return parts.join(' | ') || 'Evolution cycle completed';
+    }
+
+    async function readJsonSafe(res) {
+        if (!res) return null;
+        const text = await res.text();
+        if (!text) return null;
+        try {
+            return JSON.parse(text);
+        } catch (e) {
+            return { raw: text };
+        }
+    }
+
+    function addEvoLog(message, type = '', timestamp = null) {
+        const log = $('evo-log');
+        const entry = document.createElement('div');
+        entry.className = `evo-log-entry ${type}`;
+        const time = timestamp ? new Date(timestamp) : new Date();
+        const timeStr = time.toLocaleTimeString('en-US', { hour12: false });
+        entry.textContent = `[${timeStr}] ${message}`;
+        log.appendChild(entry);
+        log.scrollTop = log.scrollHeight;
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // SYSTEM CONTROL
+    // ═══════════════════════════════════════════════════════════
+
+    function initSystemControl() {
+        // Fetch system info
+        fetchSystemInfo();
+        setInterval(fetchSystemInfo, 10000);
+    }
+
+    async function fetchSystemInfo() {
+        try {
+            const res = await fetch('/api/system/info');
+            const data = await res.json();
+
+            if (data.os) $('sys-os').textContent = data.os;
+            if (data.uptime) $('sys-uptime').textContent = formatUptime(data.uptime);
+            if (data.cpu) $('sys-cpu').textContent = data.cpu;
+            if (data.ram) $('sys-ram').textContent = data.ram;
+        } catch (e) {
+            // System info API might not exist yet
+            $('sys-os').textContent = navigator.platform || 'Windows';
+        }
+    }
+
+    function formatUptime(seconds) {
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        return `${h}h ${m}m`;
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // REAL-TIME REPAIR
+    // ═══════════════════════════════════════════════════════════
+
+    function initRepair() {
+        const btn = $('repair-scan-btn');
+        if (btn) {
+            btn.addEventListener('click', runRepairScan);
+        }
+    }
+
+    async function runRepairScan() {
+        const btn = $('repair-scan-btn');
+        const statusEl = $('repair-status');
+        const logEl = $('repair-log');
+
+        btn.disabled = true;
+        statusEl.textContent = 'Running diagnostics...';
+        logEl.innerHTML = '';
+
+        const checks = [
+            { name: 'Network connectivity', check: checkNetwork },
+            { name: 'AI provider status', check: checkProvider },
+            { name: 'Socket connection', check: checkSocket },
+            { name: 'Memory usage', check: checkMemory },
+            { name: 'Plugin system', check: checkPlugins },
+            { name: 'Disk space', check: checkDisk },
+        ];
+
+        let issues = 0;
+
+        for (const check of checks) {
+            addRepairLine(`Checking ${check.name}...`, '');
+            await sleep(400 + Math.random() * 300);
+
+            try {
+                const result = await check.check();
+                if (result.ok) {
+                    addRepairLine(`  ${check.name}: OK`, 'repair-ok');
+                } else {
+                    addRepairLine(`  ${check.name}: ${result.message}`, 'repair-warn');
+                    issues++;
+
+                    // Auto-repair attempt
+                    if (result.repair) {
+                        addRepairLine(`  Attempting auto-repair...`, '');
+                        await sleep(500);
+                        try {
+                            await result.repair();
+                            addRepairLine(`  Repaired successfully`, 'repair-ok');
+                        } catch (e) {
+                            addRepairLine(`  Auto-repair failed: ${e.message}`, 'repair-err');
+                        }
+                    }
+                }
+            } catch (e) {
+                addRepairLine(`  ${check.name}: Error - ${e.message}`, 'repair-err');
+                issues++;
+            }
+        }
+
+        addRepairLine('', '');
+        if (issues === 0) {
+            statusEl.textContent = 'All systems healthy - no issues detected';
+            addRepairLine('Diagnostics complete: All systems nominal', 'repair-ok');
+        } else {
+            statusEl.textContent = `Found ${issues} issue(s) - see log for details`;
+            addRepairLine(`Diagnostics complete: ${issues} issue(s) found`, 'repair-warn');
+        }
+
+        btn.disabled = false;
+    }
+
+    function addRepairLine(text, className) {
+        const log = $('repair-log');
+        const line = document.createElement('div');
+        line.className = `repair-line ${className}`;
+        line.textContent = text;
+        log.appendChild(line);
+        log.scrollTop = log.scrollHeight;
+    }
+
+    async function checkNetwork() {
+        try {
+            const ctrl = new AbortController();
+            const t = setTimeout(() => ctrl.abort(), 3000);
+            await fetch('https://1.1.1.1', { method: 'HEAD', mode: 'no-cors', signal: ctrl.signal });
+            clearTimeout(t);
+            return { ok: true };
+        } catch (e) {
+            return { ok: false, message: 'No internet connection', repair: () => fetch('https://1.1.1.1', { method: 'HEAD', mode: 'no-cors' }) };
+        }
+    }
+
+    async function checkProvider() {
+        if (state.connected) {
+            return { ok: true };
+        }
+        return { ok: false, message: 'AI provider not connected', repair: () => connectSocket() };
+    }
+
+    async function checkSocket() {
+        if (state.socket && state.socket.connected) {
+            return { ok: true };
+        }
+        return { ok: false, message: 'Socket disconnected', repair: () => { connectSocket(); return sleep(2000); } };
+    }
+
+    async function checkMemory() {
+        if (performance.memory) {
+            const used = performance.memory.usedJSHeapSize / (1024 * 1024);
+            if (used > 500) {
+                return { ok: false, message: `High memory usage: ${Math.round(used)}MB` };
+            }
+        }
+        return { ok: true };
+    }
+
+    async function checkPlugins() {
+        try {
+            const res = await fetch('/api/plugins/status');
+            const data = await res.json();
+            if (data.loaded) {
+                return { ok: true };
+            }
+            return { ok: false, message: 'Some plugins failed to load' };
+        } catch (e) {
+            return { ok: true }; // Can't check, assume OK
+        }
+    }
+
+    async function checkDisk() {
+        // Can't check disk from browser, assume OK
+        return { ok: true };
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // SETTINGS
+    // ═══════════════════════════════════════════════════════════
+
+    function initSettings() {
+        // Provider switch
+        const provSel = $('setting-provider');
+        if (provSel) {
+            provSel.addEventListener('change', () => {
+                if (state.socket) {
+                    state.socket.emit('switch-provider', { provider: provSel.value });
+                }
+            });
+        }
+
+        // Color swatches
+        $$('.color-swatch').forEach((swatch) => {
+            swatch.addEventListener('click', () => {
+                $$('.color-swatch').forEach((s) => s.classList.remove('active'));
+                swatch.classList.add('active');
+
+                const colorMap = {
+                    cyan: '#00eaff',
+                    purple: '#a855f7',
+                    green: '#22d3ee',
+                    gold: '#f59e0b',
+                };
+                const color = colorMap[swatch.dataset.color] || '#00eaff';
+                document.documentElement.style.setProperty('--accent-cyan', color);
+
+                if (state.reactor) {
+                    state.reactor.targetColor = new THREE.Color(color);
+                }
+            });
+        });
+    }
+
+
+    // ═══════════════════════════════════════════════════════════
+    // AUDIO VISUALIZATION & TERMINATION
+    // ═══════════════════════════════════════════════════════════
+
+    function initAudioVisualizer() {
+        const canvas = $('waveform-canvas');
+        if (!canvas) return;
+
+        // Event listeners for Stop Buttons
+        const stopChatBtn = $('stop-chat-btn');
+        const stopVoiceBtn = $('stop-voice-btn');
+
+        if (stopChatBtn) stopChatBtn.addEventListener('click', handleStopChat);
+        if (stopVoiceBtn) stopVoiceBtn.addEventListener('click', handleStopVoice);
+    }
+
+    async function setupAudioStream() {
+        if (state.audioContext) return;
+        
+        try {
+            state.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            state.analyser = state.audioContext.createAnalyser();
+            state.analyser.fftSize = 512;
+            state.analyser.smoothingTimeConstant = 0.82;
+            
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            state.audioStream = stream;
+            const source = state.audioContext.createMediaStreamSource(stream);
+            source.connect(state.analyser);
+            
+            state.visualizerActive = true;
+            renderWaveform();
+        } catch (err) {
+            console.error('[Audio] Failed to setup stream:', err);
+        }
+    }
+
+    function renderWaveform() {
+        if (!state.visualizerActive) return;
+        
+        const canvas = $('waveform-canvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const rect = canvas.getBoundingClientRect();
+        const dpr = window.devicePixelRatio || 1;
+        const targetWidth = Math.max(1, Math.floor(rect.width * dpr));
+        const targetHeight = Math.max(1, Math.floor(rect.height * dpr));
+
+        if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
+            canvas.width = targetWidth;
+            canvas.height = targetHeight;
+        }
+
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+        const width = rect.width;
+        const height = rect.height;
+        const bufferLength = state.analyser?.frequencyBinCount || 256;
+        const dataArray = new Uint8Array(bufferLength);
+        if (state.analyser) state.analyser.getByteFrequencyData(dataArray);
+
+        ctx.clearRect(0, 0, width, height);
+        ctx.fillStyle = 'rgba(8, 12, 22, 0.4)';
+        ctx.fillRect(0, 0, width, height);
+
+        const centerY = height / 2;
+        const maxBarHeight = height * 0.42;
+        const barCount = Math.min(96, Math.max(36, Math.floor(width / 10)));
+        const binSize = Math.max(1, Math.floor(bufferLength / barCount));
+
+        if (!state.waveformSmooth || state.waveformSmooth.length !== barCount) {
+            state.waveformSmooth = new Float32Array(barCount);
+        }
+
+        const barWidth = width / barCount;
+        const gap = Math.max(1, barWidth * 0.25);
+        const drawWidth = Math.max(2, barWidth - gap);
+
+        const gradient = ctx.createLinearGradient(0, centerY - maxBarHeight, 0, centerY + maxBarHeight);
+        if (state.isSpeaking) {
+            gradient.addColorStop(0, 'rgba(168, 85, 247, 0.1)');
+            gradient.addColorStop(0.5, 'rgba(239, 68, 68, 0.9)');
+            gradient.addColorStop(1, 'rgba(168, 85, 247, 0.1)');
+            ctx.shadowColor = 'rgba(168, 85, 247, 0.6)';
+        } else {
+            gradient.addColorStop(0, 'rgba(0, 234, 255, 0.1)');
+            gradient.addColorStop(0.5, 'rgba(34, 211, 238, 0.9)');
+            gradient.addColorStop(1, 'rgba(0, 234, 255, 0.1)');
+            ctx.shadowColor = 'rgba(0, 234, 255, 0.55)';
+        }
+
+        ctx.fillStyle = gradient;
+        ctx.shadowBlur = 18;
+
+        for (let i = 0; i < barCount; i++) {
+            let sum = 0;
+            const start = i * binSize;
+            for (let j = 0; j < binSize; j++) {
+                sum += dataArray[start + j] || 0;
+            }
+            let amp = sum / (binSize * 255);
+            if (state.isSpeaking) {
+                const t = Date.now() / 120;
+                amp += Math.sin(i * 0.35 + t) * 0.08;
+            }
+            amp = Math.max(0, amp);
+            const smooth = (state.waveformSmooth[i] = state.waveformSmooth[i] * 0.72 + amp * 0.28);
+            const barHeight = Math.max(3, smooth * maxBarHeight);
+
+            const x = i * barWidth + gap / 2;
+            const y = centerY - barHeight;
+            const h = barHeight * 2;
+            const radius = Math.min(6, drawWidth / 2);
+            drawRoundedRect(ctx, x, y, drawWidth, h, radius);
+        }
+
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(0, centerY);
+        ctx.lineTo(width, centerY);
+        ctx.stroke();
+
+        requestAnimationFrame(renderWaveform);
+    }
+
+    function drawRoundedRect(ctx, x, y, width, height, radius) {
+        const r = Math.min(radius, width / 2, height / 2);
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.lineTo(x + width - r, y);
+        ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+        ctx.lineTo(x + width, y + height - r);
+        ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+        ctx.lineTo(x + r, y + height);
+        ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+        ctx.lineTo(x, y + r);
+        ctx.quadraticCurveTo(x, y, x + r, y);
+        ctx.closePath();
+        ctx.fill();
+    }
+
+    function handleStopChat() {
+        if (state.socket) {
+            state.socket.emit('stop-generation');
+        }
+        state.synthesis.cancel();
+        state.isSpeaking = false;
+        $('thinking-indicator').classList.add('hidden');
+        $('stop-chat-btn').classList.add('hidden');
+        console.log('[App] Chat generation terminated');
+    }
+
+    function handleStopVoice() {
+        state.synthesis.cancel();
+        state.isSpeaking = false;
+        $('stop-voice-btn').classList.add('hidden');
+        if (state.voiceReactor) state.voiceReactor.setState('idle');
+        console.log('[App] Voice output terminated');
+    }
+
+    function initNeural() {
+        if (typeof NeuralThinking !== 'undefined') {
+            state.neuralChat = new NeuralThinking('neural-chat-canvas');
+            state.neuralVoice = new NeuralThinking('neural-voice-canvas');
+            console.log('[UI] Neural Core initialized');
+        } else {
+            console.warn('[UI] NeuralThinking class not available');
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // UTILITIES
+    // ═══════════════════════════════════════════════════════════
+
+    function sleep(ms) {
+        return new Promise((r) => setTimeout(r, ms));
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // STARTUP
+    // ═══════════════════════════════════════════════════════════
+
+    document.addEventListener('DOMContentLoaded', () => {
+        runBootSequence();
     });
-  }
-});
+
+})();

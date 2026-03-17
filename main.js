@@ -28,8 +28,11 @@ let isQuitting = false;
 
 // Force Electron (Chromium) to allow microphone and speech API BEFORE anything loads
 app.commandLine.appendSwitch('enable-speech-dispatcher');
-app.commandLine.appendSwitch('ignore-certificate-errors', 'true');
-app.commandLine.appendSwitch('allow-insecure-localhost', 'true');
+if (process.env.SENTINAL_DEV === '1') {
+    // Dev-only escape hatches; keep production strict.
+    app.commandLine.appendSwitch('ignore-certificate-errors', 'true');
+    app.commandLine.appendSwitch('allow-insecure-localhost', 'true');
+}
 
 // Helpers
 const getSetupStateFile = () => path.join(app.getPath('userData'), 'setup-complete.json');
@@ -110,8 +113,9 @@ function createMainWindow() {
         backgroundColor: '#000000',
         icon: path.join(__dirname, 'assets', 'icon.ico'),
         webPreferences: {
-            nodeIntegration: true,
-            contextIsolation: false,
+            nodeIntegration: false,
+            contextIsolation: true,
+            sandbox: true,
             enableBlinkFeatures: 'SpeechRecognition',
             preload: path.join(__dirname, 'preload.cjs')
         },

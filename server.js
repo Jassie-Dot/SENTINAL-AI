@@ -23,6 +23,9 @@ import AIHandler from "./lib/ai-handler.js";
 import SocketManager from "./lib/socket-manager.js";
 import systemTools from "./lib/system-tools.js"; // Helper for legacy APIs
 import LongTermMemory from "./lib/long-term-memory.mjs";
+import SystemDiagnostics from "./lib/system-diagnostics.mjs";
+import SelfEvolutionEngine from "./lib/self-evolution-engine.mjs";
+import InternetIntelligence from "./lib/internet-intelligence.mjs";
 
 // Constants
 const PORT = process.env.PORT || 3000;
@@ -44,6 +47,10 @@ const aiHandler = new AIHandler({
 });
 contextManager.setAIHandler(aiHandler);
 const longTermMemory = new LongTermMemory(aiHandler);
+const systemDiagnostics = new SystemDiagnostics();
+const internetIntelligence = new InternetIntelligence();
+const selfEvolutionEngine = new SelfEvolutionEngine(aiHandler, pluginLoader, internetIntelligence);
+
 const socketManager = new SocketManager(
   httpServer,
   contextManager,
@@ -72,6 +79,27 @@ app.get("/api/health", async (req, res) => {
   });
 });
 
+app.get('/favicon.ico', (req, res) => res.status(204).end());
+
+app.get("/api/system/info", async (req, res) => {
+  try {
+    const snap = await systemDiagnostics.getFullSnapshot();
+    const os = await import('os');
+
+    res.json({
+      ok: true,
+      os: `${snap.os.distro} (${snap.os.platform})`,
+      uptime: Math.round(os.uptime()),
+      cpu: `${snap.cpu.manufacturer} ${snap.cpu.brand} (${snap.cpu.cores} Cores)`,
+      ram: `${snap.memory.total} GB`,
+      memoryUsage: snap.memory.percent,
+      status: snap.status
+    });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 app.get("/api/config/location", async (req, res) => {
   const locationPlugin = pluginLoader.getPlugin("location");
   if (locationPlugin?.getCurrentLocation) {
@@ -83,6 +111,35 @@ app.get("/api/config/location", async (req, res) => {
     }
   } else {
     res.json({ ok: false, error: "Location plugin not loaded" });
+  }
+});
+
+app.get("/api/evolution/log", (req, res) => res.json(selfEvolutionEngine.getEvolutionLog()));
+
+app.post("/api/evolution/trigger", async (req, res) => {
+  try {
+    const result = await selfEvolutionEngine.runEvolutionCycle();
+    const log = selfEvolutionEngine.getEvolutionLog();
+    const fullLog = Array.isArray(selfEvolutionEngine.evolutionLog) ? selfEvolutionEngine.evolutionLog : null;
+    const total = fullLog ? fullLog.length : log.length;
+    const successes = fullLog
+      ? fullLog.filter((entry) => entry && entry.success).length
+      : log.filter((entry) => entry && entry.success).length;
+    const fitness = total ? Math.round((successes / total) * 100) : 0;
+
+    res.json({
+      ok: true,
+      success: result.success,
+      result,
+      generation: total,
+      fitness,
+      mutations: successes,
+      message: result.message,
+      error: result.error
+    });
+  } catch (err) {
+    console.error("[API] Evolution failed:", err.message);
+    res.status(500).json({ ok: false, error: err.message });
   }
 });
 
@@ -110,11 +167,6 @@ app.post("/api/chat", async (req, res) => {
     }
 
     // 2. AI Fallback (Non-streaming for REST)
-    // Note: AIHandler is designed for streaming, but we can buffer it here.
-    // Or specific non-streaming method. For now, let's use a simple buffer wrapper.
-    // Actually, let's just return a placeholder or use the stream in a promise.
-
-    // Simulating sync response via stream accumulation
     let reply = "";
     const context = {
       userName: "Sir",

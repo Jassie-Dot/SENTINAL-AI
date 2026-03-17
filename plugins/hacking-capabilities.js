@@ -1,91 +1,53 @@
-import fetch from 'node-fetch';
-
 const plugin = {
-    name: 'hacking-capabilities',
+    name: 'crypto-utils',
     version: '1.0.0',
     
     initialize() { 
-        console.log('[PLUGIN] hacking-capabilities loaded'); 
+        console.log('[PLUGIN] crypto-utils loaded'); 
     },
     
     canHandle(intent, text) { 
-        return /^hacking.*cap|screw|exploit|crack|decrypt|encrypt|payload$/i.test(text); 
+        return /(base64|encode|decode|encrypt|decrypt)\b/i.test(text); 
     },
     
     async handle(intent, text, context) {
         try {
             const trimmedText = text.trim().toLowerCase();
             
-            if (trimmedText.includes('encrypt')) {
-                const textToEncrypt = context?.text || 'default text';
-                const encrypted = Buffer.from(textToEncrypt).toString('base64');
+            if (trimmedText.includes('encode') || trimmedText.includes('encrypt') || trimmedText.includes('base64')) {
+                const textToEncode = context?.text || text.replace(/.*?(encode|encrypt|base64)/i, '').trim() || 'default text';
+                const encoded = Buffer.from(textToEncode).toString('base64');
                 return { 
                     success: true, 
-                    message: "Text encrypted successfully", 
-                    data: { original: textToEncrypt, encrypted: encrypted }
+                    message: "Base64 encoded successfully.", 
+                    data: { original: textToEncode, base64: encoded }
                 };
             }
             
-            else if (trimmedText.includes('decrypt')) {
-                const textToDecrypt = context?.text || '';
+            else if (trimmedText.includes('decode') || trimmedText.includes('decrypt')) {
+                const textToDecode = context?.text || text.replace(/.*?(decode|decrypt)/i, '').trim() || '';
                 try {
-                    const decrypted = Buffer.from(textToDecrypt, 'base64').toString('utf8');
+                    const decoded = Buffer.from(textToDecode, 'base64').toString('utf8');
                     return { 
                         success: true, 
-                        message: "Text decrypted successfully", 
-                        data: { encrypted: textToDecrypt, decrypted: decrypted }
+                        message: "Base64 decoded successfully.", 
+                        data: { base64: textToDecode, decoded }
                     };
                 } catch (error) {
                     return { 
                         success: false, 
-                        message: "Failed to decrypt - invalid base64 encoding" 
+                        message: "Failed to decode: invalid base64." 
                     };
                 }
-            }
-            
-            else if (trimmedText.includes('payload') || trimmedText.includes('exploit')) {
-                return { 
-                    success: true, 
-                    message: "Payload generation initiated", 
-                    data: { 
-                        status: "simulated", 
-                        payload: "simulated_payload_data",
-                        warning: "This is a simulation only - no actual exploits generated"
-                    }
-                };
-            }
-            
-            else if (trimmedText.includes('crack')) {
-                return { 
-                    success: true, 
-                    message: "Cracking simulation completed", 
-                    data: { 
-                        method: "brute-force simulation", 
-                        result: "simulated_crack_result",
-                        time: "0.5s (simulated)"
-                    }
-                };
-            }
-            
-            else if (trimmedText.includes('screw')) {
-                return { 
-                    success: true, 
-                    message: "Security bypass simulation executed", 
-                    data: { 
-                        action: "simulated_security_bypass",
-                        level: "high",
-                        access: "simulated_admin_privileges"
-                    }
-                };
             }
             
             else {
                 return {
                     success: true,
-                    message: "Advanced hacking capabilities activated",
+                    message: "Crypto utilities ready.",
                     data: {
-                        available_operations: ["encrypt", "decrypt", "payload", "crack", "exploit", "screw"],
-                        note: "All operations are simulated for security purposes"
+                        available_operations: ["base64 encode", "base64 decode"],
+                       note: "This module provides safe encoding/decoding utilities only."
                     }
                 };
             }
@@ -93,7 +55,7 @@ const plugin = {
         } catch (error) {
             return {
                 success: false,
-                message: `Hacking operation failed: ${error.message}`,
+                message: `Crypto operation failed: ${error.message}`,
                 data: { error: error.toString() }
             };
         }

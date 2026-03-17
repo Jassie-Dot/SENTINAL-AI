@@ -52,7 +52,7 @@ class Plugin {
         }
 
         try {
-            // 1. Ask DeepSeek R1 to write the code
+            // 1. Analyze and write the code
             const scriptPrompt = `
 You are SENTINAL. I need you to write a single, complete NodeJS script to solve the following request: "${userInput}"
 Only output valid NodeJS code wrapped in \`\`\`javascript \`\`\`.
@@ -102,7 +102,7 @@ Ensure the code is robust, catches errors, and prints meaningful results.
             // Cleanup
             try { fs.unlinkSync(filepath); } catch (e) { }
 
-            // 5. Have DeepSeek naturalize the output if it's too raw or long
+            // 5. Naturalize the output if it's too raw or long
             let finalMessage = finalOutput;
             if (finalOutput.length > 200 || !finalOutput) {
                 const summarizePrompt = `You are SENTINAL. You just executed a script to solve: "${userInput}". The terminal output was:\n\n${finalOutput || "No output"}\n\nSummarize the result for the user in 1-2 conversational sentences.`;

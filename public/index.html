@@ -1,541 +1,493 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-  <meta charset="utf-8" />
-  <title>S.E.N.T.I.N.A.L. Mark IV — Desktop</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#0a0a0a" />
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%2300f2ff'/%3E%3Cstop offset='1' stop-color='%237af0ff'/%3E%3C/linearGradient%3E%3C/defs%3E%3Ccircle cx='32' cy='32' r='28' fill='url(%23g)'/%3E%3Cpath d='M30 10 L38 10 L34 28 L44 28 L26 54 L30 36 L20 36 Z' fill='%23001318'/%3E%3C/svg%3E" />
-  <meta name="description" content="S.E.N.T.I.N.A.L. Mark IV — Intelligent AI Desktop Assistant by Jassie Industries" />
-  <link rel="stylesheet" href="style.css" />
-  <link rel="stylesheet" href="bios.css" />
-  <script src="vendor/three.min.js"></script>
-  <script src="/socket.io/socket.io.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' ws://localhost:* http://localhost:* https://*; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob:;">
+    <title>SENTINAL PRO</title>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;900&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+    <!-- Three.js -->
+    <script src="vendor/three.min.js"></script>
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="style.css">
 </head>
+<body>
 
-<body data-mode="chat">
-
-  <!-- ADVANCED RETRO BIOS STARTUP -->
-  <div id="bios-screen">
-    <div class="crt-overlay"></div>
-    <div class="scanlines"></div>
-    <div class="glow-overlay"></div>
-    <div class="bios-container">
-      <div class="bios-header">
-        <div class="energy-star">
-          <svg viewBox="0 0 100 100" class="energy-star-logo">
-            <path d="M50 5 L63 35 L95 40 L72 62 L78 95 L50 80 L22 95 L28 62 L5 40 L37 35 Z" fill="none"
-              stroke="currentColor" stroke-width="2" />
-            <path d="M50 15 L60 38 L85 42 L68 60 L72 85 L50 72 L28 85 L32 60 L15 42 L40 38 Z" fill="currentColor" />
-            <text x="50" y="8" text-anchor="middle" font-size="8" fill="currentColor">ENERGY</text>
-            <text x="50" y="98" text-anchor="middle" font-size="8" fill="currentColor">System</text>
-          </svg>
-        </div>
-        <div class="bios-title-block">
-          <h1>SENTINAL SYSTEMS (R) QUANTUM BIOS v4.2.0</h1>
-          <h2>COPYRIGHT (C) 2026 SENTINAL AI SYSTEMS.</h2>
-          <p>ASSEMBLY DATE: <span id="bios-date">03/07/2026</span></p>
-        </div>
-        <div class="bios-logo-right">
-          <div class="jassie-logo">JASSIE IND.</div>
-        </div>
-      </div>
-      <div class="bios-main">
-        <div class="bios-hardware-check">
-          <div class="check-row">Main Processor: <span class="white">QUANTUM NEURAL CORE i9 [256 CORES]</span></div>
-          <div class="check-row">Clock Speed: <span class="white">10.5 GHz (STABLE)</span></div>
-          <div class="check-row">Memory Test: <span id="memCounter">0</span> KB OK</div>
-          <div class="check-row">Primary Master: <span class="white">QUANTUM_CORE_DRIVE_01 (1024 PB)</span></div>
-          <div class="check-row">Primary Slave: <span class="white">SECURE_UPLINK_NODE_ALPHA</span></div>
-        </div>
-        <div class="bios-divider"></div>
-        <div id="bios-log" class="bios-log"></div>
-      </div>
-      <div class="bios-footer">
-        <div class="footer-line">Press <span class="key">DEL</span> to enter SETUP</div>
-        <div class="footer-line">Press <span class="key">F12</span> for NETWORK BOOT</div>
-        <div class="footer-line blink">_</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ELECTRON TITLEBAR -->
-  <div class="titlebar" id="titlebar">
-    <div class="titlebar-drag">
-      <span class="titlebar-icon">⚡</span>
-      <span class="titlebar-title">S.E.N.T.I.N.A.L. MARK IV</span>
-    </div>
-    <div class="titlebar-controls">
-      <button class="titlebar-btn minimize" id="minimizeBtn" title="Minimize">─</button>
-      <button class="titlebar-btn maximize" id="maximizeBtn" title="Maximize">□</button>
-      <button class="titlebar-btn close" id="closeBtn" title="Close">✕</button>
-    </div>
-  </div>
-
-  <!-- HUD OVERLAYS -->
-  <div class="hud-overlay">
-    <div class="grid-background"></div>
-    <div class="scanlines"></div>
-    <div class="vignette"></div>
-  </div>
-
-  <!-- SVG GLOW FILTERS -->
-  <svg style="position: absolute; width: 0; height: 0;" aria-hidden="true">
-    <filter id="glow">
-      <feGaussianBlur stdDeviation="3" result="blur" />
-      <feComposite in="SourceGraphic" in2="blur" operator="over" />
-    </filter>
-    <filter id="hologram">
-      <feColorMatrix type="matrix" values="0 0 0 0 1  0 0 0 0 0.8  0 0 0 0 0  0 0 0 1 0" />
-      <feGaussianBlur stdDeviation="0.5" />
-    </filter>
-  </svg>
-
-  <!-- MODE TOGGLE HEADER -->
-  <header class="mode-header">
-    <div class="mode-toggle">
-      <button class="mode-btn" id="voice-toggle" title="Voice Mode">
-        <span class="mode-icon">🎤</span>
-        <span class="mode-label">VOICE</span>
-      </button>
-      <div class="mode-divider"></div>
-      <button class="mode-btn active" id="chatModeBtn" title="Chat Mode">
-        <span class="mode-icon">💬</span>
-        <span class="mode-label">CHAT</span>
-      </button>
-      <div class="mode-divider"></div>
-      <button class="mode-btn" id="hackerModeBtn" title="Hacker Dashboard">
-        <span class="mode-icon">💀</span>
-        <span class="mode-label">HACK</span>
-      </button>
-      <div class="mode-divider"></div>
-      <button class="mode-btn repair-btn" id="repairModeBtn" title="System Repair">
-        <span class="mode-icon">🔧</span>
-        <span class="mode-label">REPAIR</span>
-      </button>
-    </div>
-
-    <div class="header-status">
-      <span class="sentinal-title">S.E.N.T.I.N.A.L.</span>
-      <span class="status-badge" id="modeStatus">CHAT MODE</span>
-      <div class="consciousness-indicator" id="consciousnessIndicator" title="Neural State">
-        <span class="brain-pulse">🧠</span>
-        <span class="mood-label" id="sentinalMood">IDLE</span>
-      </div>
-      <!-- FEELINGS BADGE -->
-      <div class="emotion-badge" id="emotionBadge" title="SENTINAL Emotional State">
-        <span class="emotion-icon" id="emotionIcon">💭</span>
-        <span class="emotion-label" id="emotionLabel">NEUTRAL</span>
-        <div class="emotion-vad-mini">
-          <div class="vad-bar" id="vadValence" title="Valence"></div>
-          <div class="vad-bar" id="vadArousal" title="Arousal"></div>
-        </div>
-      </div>
-    </div>
-
-    <div class="header-time">
-      <div id="hudClock">10:51:53</div>
-      <div id="hudDate">MAR. 07, 2026</div>
-    </div>
-  </header>
-
-  <!-- MAIN LAYOUT -->
-  <div class="sentinal-container" role="application">
-
-    <!-- LEFT PANEL: ARC REACTOR + TELEMETRY -->
-    <section class="left-panel">
-      <div class="telemetry-top">
-        <div class="telemetry-item">
-          <span class="label">CORE_TEMP</span>
-          <div class="bar-container">
-            <div class="bar" id="tempBar" style="width: 42%;"></div>
-          </div>
-          <span class="value">42°C</span>
-        </div>
-        <div class="telemetry-item">
-          <span class="label">POWER_OUTPUT</span>
-          <div class="bar-container">
-            <div class="bar" id="powerBar" style="width: 89%;"></div>
-          </div>
-          <span class="value">8.9 GW</span>
-        </div>
-      </div>
-
-      <div class="reactor-assembly">
-        <div class="orb-wrapper" id="reactorParallax">
-          <!-- 3D Arc Reactor — TWO.js renders here via script.js -->
-          <div id="tesseract-container"></div>
-        </div>
-      </div>
-
-      <div class="status-box">
-        <div class="status-indicator">
-          <div class="dot" id="statusDot"></div>
-          <span id="statusText">IDLE</span>
-        </div>
-        <div class="system-id">MARK_IV_v.4.0.0</div>
-      </div>
-
-      <!-- Voice Mode Controls -->
-      <div class="voice-controls" id="voiceControls">
-        <div class="voice-status" id="voiceStatus">
-          <span class="pulse-ring"></span>
-          <span class="voice-label">LISTENING</span>
-        </div>
-        <button class="terminate-btn voice-terminate" id="voiceTerminate" title="Terminate">
-          <span>⏹</span> TERMINATE
-        </button>
-      </div>
-
-      <!-- EMOTION PANEL (Real-time Feelings Display) -->
-      <div class="emotion-panel" id="emotionPanel">
-        <div class="emotion-panel-header">EMOTIONAL STATE</div>
-        <div class="emotion-state-display" id="emotionStateDisplay">
-          <div class="emotion-name" id="emotionName">NEUTRAL</div>
-          <div class="emotion-bars">
-            <div class="erow">
-              <span>V</span>
-              <div class="ebar-wrap">
-                <div class="ebar ebar-v" id="barValence" style="width:50%"></div>
-              </div>
+    <!-- ═══════════════════════════════════════════ -->
+    <!--  BOOT SCREEN                                -->
+    <!-- ═══════════════════════════════════════════ -->
+    <div id="boot-screen" class="boot-screen">
+        <div class="boot-container">
+            <div class="boot-reactor-glow"></div>
+            <div class="boot-logo">
+                <div class="boot-logo-ring boot-ring-1"></div>
+                <div class="boot-logo-ring boot-ring-2"></div>
+                <div class="boot-logo-ring boot-ring-3"></div>
+                <div class="boot-logo-core"></div>
             </div>
-            <div class="erow">
-              <span>A</span>
-              <div class="ebar-wrap">
-                <div class="ebar ebar-a" id="barArousal" style="width:50%"></div>
-              </div>
+            <div class="boot-title">
+                <span class="boot-title-s">S</span><span class="boot-title-dot">.</span><span class="boot-title-e">E</span><span class="boot-title-dot">.</span><span class="boot-title-n">N</span><span class="boot-title-dot">.</span><span class="boot-title-t">T</span><span class="boot-title-dot">.</span><span class="boot-title-i">I</span><span class="boot-title-dot">.</span><span class="boot-title-n2">N</span><span class="boot-title-dot">.</span><span class="boot-title-a">A</span><span class="boot-title-dot">.</span><span class="boot-title-l">L</span>
+                <span class="boot-pro-badge">PRO</span>
             </div>
-            <div class="erow">
-              <span>D</span>
-              <div class="ebar-wrap">
-                <div class="ebar ebar-d" id="barDominance" style="width:50%"></div>
-              </div>
+            <div class="boot-subtitle">Self-Evolving Neural Tactical Intelligence</div>
+            <div class="boot-progress-container">
+                <div class="boot-progress-bar" id="boot-progress"></div>
             </div>
-          </div>
-          <div class="user-emotion-label">USER: <span id="userEmotionLabel">READING...</span></div>
+            <div class="boot-status" id="boot-status">Initializing quantum core...</div>
+            <div class="boot-log" id="boot-log"></div>
         </div>
-        <div class="emotion-history" id="emotionHistory">
-          <!-- Populated by JS -->
-        </div>
-      </div>
-
-      <div class="telemetry-bottom">
-        <div class="data-block">
-          <span class="title">SAT_LINK</span>
-          <span class="val">ESTABLISHED</span>
-        </div>
-        <div class="data-block">
-          <span class="title">GEO_LOC</span>
-          <span class="val" id="weatherLocation">LUDHIANA, IN</span>
-        </div>
-      </div>
-    </section>
-
-    <!-- RIGHT PANEL: COMMAND CENTER -->
-    <section class="right-panel" id="chatPanel">
-      <div class="panel-header">
-        <h2>COMMAND INTERFACE</h2>
-        <div class="divider"></div>
-      </div>
-
-      <main id="messages" class="scroll-vignette"></main>
-
-
-      <div id="typing" class="typing-indicator hidden">
-        <div class="dot"></div>
-        <div class="dot"></div>
-        <div class="dot"></div>
-      </div>
-
-      <footer class="input-area">
-        <div class="file-drop" id="fileArea">
-          <input type="file" id="fileInput" multiple hidden />
-          <button class="icon-btn" id="attach" title="Attach Data">📎</button>
-        </div>
-        <input type="text" id="input" placeholder="AWAITING COMMAND..." autocomplete="off" />
-        <div class="action-btns">
-          <button class="icon-btn voice-toggle active" id="voiceToggle" title="Voice Output: ON">🔊</button>
-          <button class="terminate-btn" id="chatTerminate" title="Terminate Response">⏹</button>
-          <button class="icon-btn" id="mic" title="Voice Input">🎤</button>
-          <button class="icon-btn prime" id="send" title="Transmit">➤</button>
-        </div>
-      </footer>
-    </section>
-
-    <!-- VOICE MODE PANEL — hidden in chat mode, shown in voice mode -->
-    <section class="voice-panel" id="voicePanel" aria-hidden="true">
-
-      <!-- Waveform visualizer -->
-      <div class="waveform-section">
-        <div class="waveform-label">AUDIO INTAKE · VOICE WAVEFORM</div>
-        <div class="waveform-wrap">
-          <canvas id="waveformCanvas" class="waveform-canvas"></canvas>
-          <div class="waveform-rings">
-            <div class="vring vring-1"></div>
-            <div class="vring vring-2"></div>
-            <div class="vring vring-3"></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Live status bar -->
-      <div class="voice-live-status" id="voiceLiveStatus">
-        <span class="vls-dot" id="vlsDot"></span>
-        <span class="vls-text" id="vlsText">AWAITING ACTIVATION</span>
-        <span class="vls-divider">|</span>
-        <span class="vls-mode" id="vlsMode">STAND BY</span>
-      </div>
-
-      <!-- Live transcript — what user says -->
-      <div class="voice-transcript-section">
-        <div class="vts-header">
-          <span class="vts-icon">🎙</span>
-          <span class="vts-label">LIVE TRANSCRIPT</span>
-          <span class="vts-confidence" id="transcriptConfidence"></span>
-        </div>
-        <div class="voice-transcript-text" id="voiceTranscriptText">
-          <span class="transcript-placeholder">Speak to interact with SENTINAL...</span>
-        </div>
-      </div>
-
-      <!-- SENTINAL response display —  last spoken response -->
-      <div class="voice-response-section">
-        <div class="vrs-header">
-          <span class="vrs-icon">⚡</span>
-          <span class="vrs-label">S.E.N.T.I.N.A.L. RESPONSE</span>
-        </div>
-        <div class="voice-response-text" id="voiceResponseText">
-          <span class="response-placeholder">Awaiting your command, Sir.</span>
-        </div>
-      </div>
-
-      <!-- Footer metrics -->
-      <div class="voice-metrics-strip">
-        <div class="vmetric">
-          <span class="vm-label">LATENCY</span>
-          <span class="vm-val" id="vmLatency">— ms</span>
-        </div>
-        <div class="vmetric">
-          <span class="vm-label">CONFIDENCE</span>
-          <span class="vm-val" id="vmConfidence">—%</span>
-        </div>
-        <div class="vmetric">
-          <span class="vm-label">TOKENS</span>
-          <span class="vm-val" id="vmTokens">0</span>
-        </div>
-        <div class="vmetric">
-          <span class="vm-label">SESSION</span>
-          <span class="vm-val" id="vmSession">00:00</span>
-        </div>
-      </div>
-    </section>
-
-  </div>
-
-  <!-- CAMERA OVERLAY -->
-  <div id="cameraOverlay" class="hidden">
-    <div class="camera-frame">
-      <video id="cameraVideo" class="camera-video" autoplay playsinline></video>
-      <canvas id="cameraCanvas" class="hidden"></canvas>
-      <div id="cameraCountdown" class="camera-countdown hidden">3</div>
-      <div class="camera-reticle"></div>
-      <div class="camera-scan-bar"></div>
     </div>
-    <div class="camera-controls">
-      <button class="camera-btn" id="captureBtn">CAPTURE</button>
-      <button class="camera-btn" id="closeCameraBtn">CLOSE</button>
+
+    <!-- ═══════════════════════════════════════════ -->
+    <!--  MAIN APPLICATION                           -->
+    <!-- ═══════════════════════════════════════════ -->
+    <div id="app" class="app hidden">
+
+        <!-- Custom Titlebar -->
+        <div class="titlebar" id="titlebar">
+            <div class="titlebar-left">
+                <div class="titlebar-logo">
+                    <div class="titlebar-reactor"></div>
+                    <span>SENTINAL <span class="pro-tag">PRO</span></span>
+                </div>
+            </div>
+            <div class="titlebar-center">
+                <div class="titlebar-status">
+                    <span class="status-dot" id="status-dot"></span>
+                    <span class="status-text" id="titlebar-status">Connecting...</span>
+                </div>
+            </div>
+            <div class="titlebar-right">
+                <button class="titlebar-btn" id="btn-repair" title="System Repair">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+                </button>
+                <div class="titlebar-divider"></div>
+                <button class="titlebar-btn" id="btn-minimize" title="Minimize">
+                    <svg width="12" height="12" viewBox="0 0 12 12"><rect y="5" width="12" height="1.5" fill="currentColor"/></svg>
+                </button>
+                <button class="titlebar-btn" id="btn-maximize" title="Maximize">
+                    <svg width="12" height="12" viewBox="0 0 12 12"><rect x="1" y="1" width="10" height="10" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+                </button>
+                <button class="titlebar-btn titlebar-btn-close" id="btn-close" title="Close">
+                    <svg width="12" height="12" viewBox="0 0 12 12"><line x1="1" y1="1" x2="11" y2="11" stroke="currentColor" stroke-width="1.5"/><line x1="11" y1="1" x2="1" y2="11" stroke="currentColor" stroke-width="1.5"/></svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Main Layout -->
+        <div class="main-layout">
+            <!-- Content Area -->
+            <main class="content" id="content">
+
+                <!-- DASHBOARD VIEW -->
+                <div class="view active" id="view-dashboard">
+                    <div class="dashboard">
+                        <div class="dash-header">
+                            <h1 class="dash-title">Command Center</h1>
+                            <div class="dash-time" id="dash-clock"></div>
+                        </div>
+
+                        <div class="dash-grid">
+                            <!-- Weather Widget [NEW] -->
+                            <div class="dash-card weather-card" id="weather-widget">
+                                <div class="card-header">
+                                    <span class="card-label">Environmental Sync</span>
+                                    <span class="weather-location" id="weather-city">Loading context...</span>
+                                </div>
+                                <div class="weather-content">
+                                    <div class="weather-main">
+                                        <div class="weather-icon-container" id="weather-icon">
+                                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--accent-cyan)" stroke-width="1.5"><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/><circle cx="12" cy="12" r="4"/></svg>
+                                        </div>
+                                        <div class="weather-temp" id="weather-temp">--°C</div>
+                                    </div>
+                                    <div class="weather-details">
+                                        <div class="weather-desc" id="weather-desc">Syncing with satellite...</div>
+                                        <div class="weather-meta">
+                                            <span>Humidity: <span id="weather-humidity">--</span>%</span>
+                                            <span>Wind: <span id="weather-wind">--</span> km/h</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Arc Reactor Card -->
+                            <div class="dash-card dash-reactor-card">
+                                <div class="card-header">
+                                    <span class="card-label">Core Status</span>
+                                    <span class="card-status online" id="core-status-badge">ONLINE</span>
+                                </div>
+                                <div class="reactor-container" id="reactor-container"></div>
+                                <div class="reactor-metrics">
+                                    <div class="reactor-metric">
+                                        <span class="metric-value" id="metric-power">100%</span>
+                                        <span class="metric-label">Power</span>
+                                    </div>
+                                    <div class="reactor-metric">
+                                        <span class="metric-value" id="metric-stability">Stable</span>
+                                        <span class="metric-label">Core Status</span>
+                                    </div>
+                                    <div class="reactor-metric">
+                                        <span class="metric-value" id="metric-evolution">v3.1</span>
+                                        <span class="metric-label">Evolution</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- System Metrics -->
+                            <div class="dash-card">
+                                <div class="card-header">
+                                    <span class="card-label">System Health</span>
+                                </div>
+                                <div class="metrics-grid">
+                                    <div class="metric-card" id="cpu-metric">
+                                        <div class="metric-ring">
+                                            <svg viewBox="0 0 36 36"><circle cx="18" cy="18" r="15.9" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="2.5"/><circle class="metric-ring-fill" cx="18" cy="18" r="15.9" fill="none" stroke="var(--accent-cyan)" stroke-width="2.5" stroke-dasharray="0 100" stroke-linecap="round" transform="rotate(-90 18 18)"/></svg>
+                                            <span class="metric-ring-value" id="cpu-value">0%</span>
+                                        </div>
+                                        <span class="metric-card-label">CPU</span>
+                                    </div>
+                                    <div class="metric-card" id="mem-metric">
+                                        <div class="metric-ring">
+                                            <svg viewBox="0 0 36 36"><circle cx="18" cy="18" r="15.9" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="2.5"/><circle class="metric-ring-fill" cx="18" cy="18" r="15.9" fill="none" stroke="var(--accent-purple)" stroke-width="2.5" stroke-dasharray="0 100" stroke-linecap="round" transform="rotate(-90 18 18)"/></svg>
+                                            <span class="metric-ring-value" id="mem-value">0%</span>
+                                        </div>
+                                        <span class="metric-card-label">Memory</span>
+                                    </div>
+                                    <div class="metric-card" id="net-metric">
+                                        <div class="metric-ring">
+                                            <svg viewBox="0 0 36 36"><circle cx="18" cy="18" r="15.9" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="2.5"/><circle class="metric-ring-fill" cx="18" cy="18" r="15.9" fill="none" stroke="var(--accent-green)" stroke-width="2.5" stroke-dasharray="0 100" stroke-linecap="round" transform="rotate(-90 18 18)"/></svg>
+                                            <span class="metric-ring-value" id="net-value">--</span>
+                                        </div>
+                                        <span class="metric-card-label">Network</span>
+                                    </div>
+                                    <div class="metric-card" id="disk-metric">
+                                        <div class="metric-ring">
+                                            <svg viewBox="0 0 36 36"><circle cx="18" cy="18" r="15.9" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="2.5"/><circle class="metric-ring-fill" cx="18" cy="18" r="15.9" fill="none" stroke="var(--accent-gold)" stroke-width="2.5" stroke-dasharray="0 100" stroke-linecap="round" transform="rotate(-90 18 18)"/></svg>
+                                            <span class="metric-ring-value" id="disk-value">0%</span>
+                                        </div>
+                                        <span class="metric-card-label">Disk</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Quick Actions -->
+                            <div class="dash-card">
+                                <div class="card-header">
+                                    <span class="card-label">Quick Actions</span>
+                                </div>
+                                <div class="quick-actions">
+                                    <button class="action-btn" id="action-chat" data-action="chat">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                                        Start Chat
+                                    </button>
+                                    <button class="action-btn" id="action-voice" data-action="voice">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>
+                                        Voice Mode
+                                    </button>
+                                    <button class="action-btn" id="action-repair" data-action="repair">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+                                        System Repair
+                                    </button>
+                                    <button class="action-btn" id="action-evolve" data-action="evolve">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+                                        Trigger Evolution
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- AI Status -->
+                            <div class="dash-card">
+                                <div class="card-header">
+                                    <span class="card-label">AI Consciousness</span>
+                                    <span class="card-status" id="consciousness-status">Active</span>
+                                </div>
+                                <div class="consciousness-display">
+                                    <div class="emotion-bar">
+                                        <span class="emotion-label">Mood</span>
+                                        <span class="emotion-value" id="emotion-mood">Focused</span>
+                                    </div>
+                                    <div class="emotion-bar">
+                                        <span class="emotion-label">Energy</span>
+                                        <div class="emotion-fill-track"><div class="emotion-fill" id="emotion-energy" style="width:80%"></div></div>
+                                    </div>
+                                    <div class="emotion-bar">
+                                        <span class="emotion-label">Confidence</span>
+                                        <div class="emotion-fill-track"><div class="emotion-fill confidence" id="emotion-confidence" style="width:90%"></div></div>
+                                    </div>
+                                    <div class="thought-stream">
+                                        <span class="thought-label">Current Thought</span>
+                                        <span class="thought-text" id="thought-text">Awaiting input...</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CHAT VIEW -->
+                <div class="view" id="view-chat">
+                    <div class="chat-main-container">
+                        <div class="chat-container">
+                        <div class="chat-messages" id="chat-messages">
+                            <div class="chat-welcome">
+                                <div class="welcome-icon">
+                                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--accent-cyan)" stroke-width="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                                </div>
+                                <h2>SENTINAL PRO Chat</h2>
+                                <p>Ask me anything. I have real-time access to your system and the internet.</p>
+                            </div>
+                        </div>
+                        <div class="chat-input-area">
+                            <!-- Thinking Process Display -->
+                            <div class="thinking-process-panel hidden" id="thinking-process-panel">
+                                <div class="thinking-header">
+                                    <span>AI COGNITION PROCESS</span>
+                                    <div class="thinking-dots"><span></span><span></span><span></span></div>
+                                </div>
+                                <div class="thinking-steps" id="thinking-steps">
+                                    <!-- Steps will be injected here -->
+                                </div>
+                            </div>
+
+                            <div class="thinking-indicator hidden" id="thinking-indicator">
+                                <div class="thinking-dots"><span></span><span></span><span></span></div>
+                                <span>SENTINAL is thinking...</span>
+                            </div>
+                            <div class="chat-input-row">
+                                <button class="terminate-btn hidden" id="stop-chat-btn" title="Stop Generation">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12"/></svg>
+                                    STOP
+                                </button>
+                                <div class="chat-input-wrapper">
+                                    <textarea id="chat-input" placeholder="Ask SENTINAL anything..." rows="1" autofocus></textarea>
+                                    <button class="send-btn" id="send-btn" title="Send message">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        </div> <!-- Closes chat-container -->
+                        
+                        <!-- Neural thinking side panel -->
+                        <div class="neural-sidebar">
+                            <div class="neural-header">
+                                <span class="neural-label">Neural Core v4.1</span>
+                                <div class="neural-load-indicator">
+                                    <span class="load-text">COG: 5%</span>
+                                    <div class="load-bar"><div class="load-fill" id="neural-load"></div></div>
+                                </div>
+                            </div>
+                            <div class="neural-canvas-container" id="neural-chat-canvas"></div>
+                            <div class="neural-meta">
+                                <span id="neural-sector">Logic Cluster: IDLE</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- VOICE VIEW -->
+                <div class="view" id="view-voice">
+                    <div class="voice-layout-container">
+                        <!-- Neural thinking background container -->
+                        <div class="neural-voice-bg" id="neural-voice-canvas"></div>
+                        
+                        <div class="voice-container">
+                        <div class="voice-reactor" id="voice-reactor-container"></div>
+                        <div class="voice-status" id="voice-status">Tap to speak</div>
+                        <div class="voice-transcript" id="voice-transcript"></div>
+                        <div class="voice-controls">
+                            <button class="voice-btn" id="voice-btn">
+                                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
+                            </button>
+                            <button class="terminate-btn voice-terminate hidden" id="stop-voice-btn" title="Stop AI">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12"/></svg>
+                            </button>
+                        </div>
+                        <div class="voice-waveform" id="voice-waveform">
+                            <canvas id="waveform-canvas" width="400" height="80"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+                <!-- EVOLUTION VIEW -->
+                <div class="view" id="view-evolution">
+                    <div class="evolution-container">
+                        <div class="evo-header">
+                            <h2>Evolution Lab</h2>
+                            <button class="evo-trigger-btn" id="evo-trigger">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+                                Trigger Evolution Cycle
+                            </button>
+                        </div>
+                        <div class="evo-stats">
+                            <div class="evo-stat">
+                                <span class="evo-stat-value" id="evo-generation">Gen 1</span>
+                                <span class="evo-stat-label">Generation</span>
+                            </div>
+                            <div class="evo-stat">
+                                <span class="evo-stat-value" id="evo-fitness">--</span>
+                                <span class="evo-stat-label">Fitness Score</span>
+                            </div>
+                            <div class="evo-stat">
+                                <span class="evo-stat-value" id="evo-mutations">0</span>
+                                <span class="evo-stat-label">Mutations</span>
+                            </div>
+                        </div>
+                        <div class="evo-log" id="evo-log">
+                            <div class="evo-log-entry">Evolution engine standing by...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SYSTEM VIEW -->
+                <div class="view" id="view-system">
+                    <div class="system-container">
+                        <div class="sys-header">
+                            <h2>System Control</h2>
+                            <span class="sys-badge" id="sys-os-badge">Windows</span>
+                        </div>
+                        <div class="sys-grid">
+                            <div class="sys-card">
+                                <h3>System Info</h3>
+                                <div class="sys-info" id="sys-info">
+                                    <div class="sys-row"><span>OS</span><span id="sys-os">Detecting...</span></div>
+                                    <div class="sys-row"><span>Uptime</span><span id="sys-uptime">--</span></div>
+                                    <div class="sys-row"><span>CPU</span><span id="sys-cpu">--</span></div>
+                                    <div class="sys-row"><span>RAM</span><span id="sys-ram">--</span></div>
+                                </div>
+                            </div>
+                            <div class="sys-card">
+                                <h3>Live Repair Console</h3>
+                                <div class="repair-console" id="repair-console">
+                                    <div class="repair-status" id="repair-status">System diagnostics ready</div>
+                                    <button class="repair-btn" id="repair-scan-btn">Run Diagnostics</button>
+                                    <div class="repair-log" id="repair-log"></div>
+                                </div>
+                            </div>
+                            <div class="sys-card sys-card-wide">
+                                <h3>Active Processes</h3>
+                                <div class="process-list" id="process-list">
+                                    <div class="process-item header">
+                                        <span>Name</span><span>CPU</span><span>Memory</span><span>Status</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SETTINGS VIEW -->
+                <div class="view" id="view-settings">
+                    <div class="settings-container">
+                        <h2>Settings</h2>
+                        <div class="settings-grid">
+                            <div class="settings-card">
+                                <h3>AI Provider</h3>
+                                <div class="setting-row">
+                                    <label>Active Provider</label>
+                                    <select id="setting-provider">
+                                        <option value="groq">Groq Cloud</option>
+                                        <option value="gemini">Google Gemini</option>
+                                        <option value="ollama">Ollama (Local)</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="settings-card">
+                                <h3>Voice</h3>
+                                <div class="setting-row">
+                                    <label>Voice Enabled</label>
+                                    <input type="checkbox" id="setting-voice" checked>
+                                </div>
+                                <div class="setting-row">
+                                    <label>TTS Rate</label>
+                                    <input type="range" id="setting-tts-rate" min="0.5" max="2" step="0.1" value="1">
+                                </div>
+                            </div>
+                            <div class="settings-card">
+                                <h3>Appearance</h3>
+                                <div class="setting-row">
+                                    <label>Accent Color</label>
+                                    <div class="color-picker">
+                                        <button class="color-swatch active" data-color="cyan" style="background:var(--accent-cyan)"></button>
+                                        <button class="color-swatch" data-color="purple" style="background:var(--accent-purple)"></button>
+                                        <button class="color-swatch" data-color="green" style="background:var(--accent-green)"></button>
+                                        <button class="color-swatch" data-color="gold" style="background:var(--accent-gold)"></button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="settings-card">
+                                <h3>About</h3>
+                                <div class="about-info">
+                                    <p><strong>SENTINAL PRO</strong> v3.1</p>
+                                    <p>Created by <strong>Sir Jassie</strong></p>
+                                    <p class="about-sub">Self-Evolving Neural Tactical Intelligence & Networked Autonomous Logic</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </main>
+        </div>
+
+        <!-- Floating Bottom Navigation -->
+        <nav class="bottom-nav" id="bottom-nav">
+            <div class="nav-items-wrapper">
+                <button class="nav-item active" data-view="dashboard" id="nav-dashboard">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                    <span>Dashboard</span>
+                </button>
+                <button class="nav-item" data-view="chat" id="nav-chat">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                    <span>Chat</span>
+                </button>
+                <button class="nav-item" data-view="voice" id="nav-voice">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
+                    <span>Voice</span>
+                </button>
+                <button class="nav-item" data-view="evolution" id="nav-evolution">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+                    <span>Evolution</span>
+                </button>
+                <button class="nav-item" data-view="system" id="nav-system">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                    <span>System</span>
+                </button>
+                <button class="nav-item" data-view="settings" id="nav-settings">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                </button>
+            </div>
+        </nav>
+
+        <!-- Status Bar -->
+        <footer class="status-bar">
+            <div class="status-left">
+                <div class="provider-pill" id="sidebar-provider">
+                    <span class="provider-dot"></span>
+                    <span class="provider-name">Offline</span>
+                </div>
+            </div>
+            <div class="status-center">
+                <span>SENTINAL v4.1 - SELF EVOLVING</span>
+            </div>
+            <div class="status-right" id="footer-diagnostics">
+                <span>CPU: 0%</span>
+                <span class="status-divider">|</span>
+                <span>MEM: 0%</span>
+            </div>
+        </footer>
     </div>
-  </div>
 
-
-  <!-- THOUGHT BUBBLE OVERLAY -->
-  <div id="thoughtBubble" class="thought-bubble" aria-live="polite">
-    <div class="thought-bubble-header">
-      <span class="thought-brain-icon">🧠</span>
-      <span class="thought-label">SENTINAL IS THINKING</span>
-      <button class="thought-dismiss" id="dismissThought" aria-label="Dismiss">✕</button>
-    </div>
-    <div class="thought-bubble-text" id="thoughtBubbleText"></div>
-    <div class="thought-bubble-meta" id="thoughtBubbleMeta"></div>
-    <div class="thought-bubble-progress"></div>
-  </div>
-
-  <!-- EVOLUTION TOAST -->
-  <div id="evolutionToast" class="evolution-toast hidden">
-    <span class="evolution-icon">⚡</span>
-    <div class="evolution-toast-content">
-      <div class="evolution-toast-title">SENTINAL EVOLVED</div>
-      <div class="evolution-toast-msg" id="evolutionMsg">New capability acquired</div>
-    </div>
-  </div>
-
-  <!-- HIDDEN LIVE REGION -->
-  <div id="sentinalLive" aria-live="polite" class="sr-only"></div>
-
-  <!-- MAIN SCRIPTS -->
-  <script type="module" src="script.js" defer></script>
-  <script src="core-particles.js" defer></script>
-
-  <!-- INLINE SOCKET HANDLERS (Thought Bubble, Evolution, Emotion) -->
-  <script>
-    (function () {
-      let thoughtTimer = null;
-
-      function showThought(thought) {
-        const bubble = document.getElementById('thoughtBubble');
-        const textEl = document.getElementById('thoughtBubbleText');
-        const metaEl = document.getElementById('thoughtBubbleMeta');
-        const progressEl = bubble.querySelector('.thought-bubble-progress');
-        const brainIcon = document.getElementById('consciousnessIndicator')?.querySelector('.brain-pulse');
-
-        if (!bubble || !textEl) return;
-
-        textEl.textContent = '"' + thought.text + '"';
-        metaEl.textContent = `${thought.category || 'thought'} · ${new Date(thought.timestamp).toLocaleTimeString()}`;
-
-        progressEl.style.animation = 'none';
-        progressEl.offsetHeight;
-        progressEl.style.animation = 'progressDrain 30s linear forwards';
-
-        bubble.classList.add('visible');
-
-        if (brainIcon) {
-          brainIcon.classList.add('thinking');
-          setTimeout(() => brainIcon.classList.remove('thinking'), 5000);
-        }
-
-        clearTimeout(thoughtTimer);
-        thoughtTimer = setTimeout(() => bubble.classList.remove('visible'), 30000);
-      }
-
-      function showEvolution(data) {
-        const toast = document.getElementById('evolutionToast');
-        const msg = document.getElementById('evolutionMsg');
-        if (!toast) return;
-        msg.textContent = data.capability ? `New plugin: ${data.capability}` : 'Capability upgraded';
-        toast.classList.remove('hidden');
-        setTimeout(() => toast.classList.add('hidden'), 6000);
-      }
-
-      function updateEmotionDisplay(state) {
-        // Header badge
-        const badge = document.getElementById('emotionBadge');
-        const icon = document.getElementById('emotionIcon');
-        const label = document.getElementById('emotionLabel');
-        const moodEl = document.getElementById('sentinalMood');
-
-        const EMOTION_ICONS = {
-          neutral: '💭', happy: '😊', curious: '🔍', excited: '⚡', focused: '🎯',
-          analytical: '📊', empathetic: '💙', concerned: '⚠️', annoyed: '😤',
-          melancholic: '🌧️', playful: '🎮', proud: '🏆', protective: '🛡️', serene: '🌊'
-        };
-
-        const emotionName = state.emotion || 'neutral';
-        const color = state.color || '#00efff';
-
-        if (icon) icon.textContent = EMOTION_ICONS[emotionName] || '💭';
-        if (label) label.textContent = emotionName.toUpperCase();
-        if (badge) badge.style.setProperty('--emotion-color', color);
-        if (moodEl) moodEl.textContent = emotionName.toUpperCase();
-
-        // Left panel
-        const eName = document.getElementById('emotionName');
-        const barV = document.getElementById('barValence');
-        const barA = document.getElementById('barArousal');
-        const barD = document.getElementById('barDominance');
-        const userLabel = document.getElementById('userEmotionLabel');
-
-        if (eName) { eName.textContent = emotionName.toUpperCase(); eName.style.color = color; }
-        if (barV) barV.style.width = `${((state.valence || 0) + 1) * 50}%`;
-        if (barA) barA.style.width = `${((state.arousal || 0) + 1) * 50}%`;
-        if (barD) barD.style.width = `${(state.dominance || 0.5) * 100}%`;
-        if (userLabel) userLabel.textContent = (state.userRecentEmotion || 'neutral').toUpperCase();
-
-        // Color-theme the body
-        document.documentElement.style.setProperty('--sentinal-emotion-color', color);
-        // Provide an RGB triplet for CSS `rgba(var(--sentinal-emotion-rgb), a)` effects.
-        const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(String(color).trim());
-        if (m) {
-          const h = m[1].length === 3 ? m[1].split('').map(c => c + c).join('') : m[1];
-          const r = parseInt(h.slice(0, 2), 16);
-          const g = parseInt(h.slice(2, 4), 16);
-          const b = parseInt(h.slice(4, 6), 16);
-          if (Number.isFinite(r) && Number.isFinite(g) && Number.isFinite(b)) {
-            document.documentElement.style.setProperty('--sentinal-emotion-rgb', `${r}, ${g}, ${b}`);
-          }
-        }
-        // Broadcast for renderer layers that don't read CSS variables directly (e.g. the 3D core).
-        window.dispatchEvent(new CustomEvent('sentinal-emotion-color', { detail: { color } }));
-
-        // History
-        const histEl = document.getElementById('emotionHistory');
-        if (histEl && state.trajectory?.length) {
-          histEl.innerHTML = state.trajectory.slice(-4).reverse().map(t => {
-            const ec = t.sentinalEmotion || 'neutral';
-            return `<div class="ehistory-item"><span>${ec}</span></div>`;
-          }).join('');
-        }
-      }
-
-      document.getElementById('dismissThought')?.addEventListener('click', () => {
-        document.getElementById('thoughtBubble')?.classList.remove('visible');
-        clearTimeout(thoughtTimer);
-      });
-
-      window.addEventListener('sentinal-thought', (e) => showThought(e.detail));
-      window.addEventListener('sentinal-evolution', (e) => showEvolution(e.detail));
-      window.addEventListener('sentinal-evolved', (e) => showEvolution(e.detail));
-
-      // Hook into socket.io once ready
-      const socketCheckInterval = setInterval(() => {
-        if (window.socket) {
-          clearInterval(socketCheckInterval);
-
-          window.socket.on('sentinal:thought', (data) => {
-            showThought(data);
-            const moodEl = document.getElementById('sentinalMood');
-            if (moodEl && data.mood) moodEl.textContent = data.mood;
-          });
-
-          window.socket.on('sentinal:evolved', showEvolution);
-          window.socket.on('sentinal:evolving', (data) => {
-            const brainIcon = document.getElementById('consciousnessIndicator')?.querySelector('.brain-pulse');
-            if (brainIcon) brainIcon.classList.add('thinking');
-            const toast = document.getElementById('evolutionToast');
-            const msg = document.getElementById('evolutionMsg');
-            if (toast && msg) {
-              msg.textContent = `Evolving: ${data.target}...`;
-              toast.style.borderColor = 'rgba(0, 239, 255, 0.5)';
-              toast.style.color = '#00efff';
-              toast.classList.remove('hidden');
-            }
-          });
-
-          // FEELINGS: Real-time emotion updates
-          window.socket.on('sentinal:emotion', (state) => {
-            updateEmotionDisplay(state);
-          });
-        }
-      }, 300);
-    })();
-  </script>
-
-  <!-- ELECTRON TITLEBAR CONTROLS -->
-  <script>
-    if (window.electronAPI) {
-      document.body.classList.add('electron-app');
-      document.getElementById('minimizeBtn')?.addEventListener('click', () => window.electronAPI.minimize());
-      document.getElementById('maximizeBtn')?.addEventListener('click', () => window.electronAPI.maximize());
-      document.getElementById('closeBtn')?.addEventListener('click', () => window.electronAPI.close());
-      console.log('[SENTINAL] Running in Electron Desktop Mode');
-    } else {
-      const titlebar = document.getElementById('titlebar');
-      if (titlebar) titlebar.style.display = 'none';
-      console.log('[SENTINAL] Running in Browser Mode');
-    }
-  </script>
-
+    <!-- Scripts -->
+    <script src="core-particles.js"></script>
+    <script src="neural-thinking.js"></script>
+    <script src="script.js"></script>
 </body>
-
 </html>

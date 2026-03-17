@@ -40,23 +40,12 @@ const plugin = {
             notify("Researshing and designing new capability...");
             updateStatus("Designing plugin architecture...");
 
-            // 1. ANALYZE REQUEST
-            // Ask LLM to extract plugin name and description/logic from user input
-            const analysisPrompt = `
-                User Input: "${userInput}"
-                
-                Identify the core capability the user wants. Return a JSON object with:
-                - "name": A clean, kebab-case filename for the plugin (e.g., "crypto-tracker", "weather-info").
-                - "description": A brief description of what it should do.
-                - "keywords": A string of regex keywords for the canHandle function.
-                
-                Example:
-                { "name": "joke-generator", "description": "Fetches random jokes", "keywords": "joke|funny|laugh" }
-                
-                RETURN ONLY JSON.
-            `;
+            const aiHandler = context.aiHandler || (global.sentinalAI ? global.sentinalAI : null);
+            if (!aiHandler) {
+                return { success: false, message: "AI handler is unavailable for self-integration." };
+            }
 
-            const analysis = await this.askOllama(analysisPrompt, true); // true = expecting JSON
+            const analysis = await this.askOllama(analysisPrompt, true, aiHandler); // true = expecting JSON
             if (!analysis || !analysis.name) {
                 return { success: false, message: "I couldn't understand what plugin you want me to build." };
             }
@@ -100,7 +89,7 @@ const plugin = {
                 GENERATE THE FULL CODE NOW. NO EXPLANATIONS.
             `;
 
-            let code = await this.askOllama(codePrompt, false);
+            let code = await this.askOllama(codePrompt, false, aiHandler);
 
             // Clean up Markdown formatting if Ollama adds it despite instructions
             code = code.replace(/```javascript/g, "").replace(/```/g, "").trim();
@@ -145,13 +134,27 @@ const plugin = {
         }
     },
 
-    async askOllama(prompt, jsonMode = false) {
+    async askOllama(prompt, jsonMode = false, aiHandler = null) {
         try {
+            // Prefer the centralized AI Handler for better provider management
+            if (aiHandler) {
+                let response = "";
+                await aiHandler.generateResponse(
+                    [{ role: "system", content: prompt }],
+                    null,
+                    (token) => { response += token; },
+                    null,
+                    true // Priority
+                );
+                return jsonMode ? JSON.parse(response.replace(/<think>[\s\S]*?<\/think>/gi, '').trim()) : response;
+            }
+
+            // Fallback to direct Ollama if AIHandler is missing
             const response = await fetch("http://127.0.0.1:11434/api/generate", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    model: "deepseek-v3.1:671b-cloud", // Use coding model
+                    model: "llama3.2", // Use a widely available local model
                     prompt: prompt,
                     stream: false,
                     format: jsonMode ? "json" : undefined
@@ -160,25 +163,8 @@ const plugin = {
             const data = await response.json();
             return jsonMode ? JSON.parse(data.response) : data.response;
         } catch (e) {
-            console.error("Ollama Generation Error:", e);
-
-            // Fallback to simpler model if coding model fails/doesn't exist
-            try {
-                const response = await fetch("http://127.0.0.1:11434/api/generate", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        model: "llama3.2", // Fallback
-                        prompt: prompt,
-                        stream: false,
-                        format: jsonMode ? "json" : undefined
-                    })
-                });
-                const data = await response.json();
-                return jsonMode ? JSON.parse(data.response) : data.response;
-            } catch (e2) {
-                throw new Error("AI generation failed. Is Ollama running?");
-            }
+            console.error("AI Generation Error in Capability Integrator:", e);
+            throw new Error("AI generation failed. Please check your AI providers.");
         }
     }
 };

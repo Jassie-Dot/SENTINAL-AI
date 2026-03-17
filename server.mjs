@@ -10,6 +10,7 @@ import { createServer } from "http";
 import cors from "cors";
 import path from "path";
 import { fileURLToPath } from 'url';
+import fetch from 'node-fetch';
 
 // Core Modules
 import PluginLoader from "./lib/plugin-loader.mjs";
@@ -109,6 +110,8 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(rateLimit);
 app.use(express.static(path.join(__dirname, "public")));
+app.get('/favicon.ico', (req, res) => res.status(204).end());
+
 
 // Request timeout middleware (30s)
 app.use((req, res, next) => {
@@ -131,6 +134,50 @@ app.get("/api/health", async (req, res) => {
         autonomy: autonomyEngine.getStatus(),
         timestamp: new Date().toISOString()
     });
+});
+
+app.get("/api/ping", (req, res) => res.json({ ok: true, message: "pong" }));
+
+app.get("/api/weather", async (req, res) => {
+    try {
+        const { lat, lon } = req.query;
+        let url = "https://wttr.in/?format=j1";
+        if (lat && lon) {
+            url = `https://wttr.in/${lat},${lon}?format=j1`;
+        }
+        
+        console.log(`[Weather Proxy] Fetching: ${url}`);
+        const response = await fetch(url, { 
+            headers: { 'User-Agent': 'SENTINAL-AI' },
+            timeout: 8000 
+        });
+        
+        if (!response.ok) throw new Error(`Weather API responded with ${response.status}`);
+        const data = await response.json();
+        res.json(data);
+    } catch (err) {
+        console.error("[Weather Proxy] Error:", err.message);
+        res.status(500).json({ ok: false, error: "Weather data currently unavailable via proxy" });
+    }
+});
+
+app.get("/api/system/info", async (req, res) => {
+    try {
+        const snap = await systemDiagnostics.getFullSnapshot();
+        const os = await import('os');
+        
+        res.json({
+            ok: true,
+            os: `${snap.os.distro} (${snap.os.platform})`,
+            uptime: Math.round(os.uptime()),
+            cpu: `${snap.cpu.manufacturer} ${snap.cpu.brand} (${snap.cpu.cores} Cores)`,
+            ram: `${snap.memory.total} GB`,
+            memoryUsage: snap.memory.percent,
+            status: snap.status
+        });
+    } catch (err) {
+        res.status(500).json({ ok: false, error: err.message });
+    }
 });
 
 app.post("/api/chat", async (req, res) => {
@@ -262,9 +309,34 @@ app.get("/api/config/location", async (req, res) => {
 });
 
 app.get("/api/evolution/log", (req, res) => res.json(selfEvolutionEngine.getEvolutionLog()));
+
+
+
 app.post("/api/evolution/trigger", async (req, res) => {
-    const result = await selfEvolutionEngine.runEvolutionCycle();
-    res.json({ ok: true, result });
+    try {
+        const result = await selfEvolutionEngine.runEvolutionCycle();
+        const log = selfEvolutionEngine.getEvolutionLog();
+        const fullLog = Array.isArray(selfEvolutionEngine.evolutionLog) ? selfEvolutionEngine.evolutionLog : null;
+        const total = fullLog ? fullLog.length : log.length;
+        const successes = fullLog
+            ? fullLog.filter(entry => entry && entry.success).length
+            : log.filter(entry => entry && entry.success).length;
+        const fitness = total ? Math.round((successes / total) * 100) : 0;
+
+        res.json({
+            ok: true,
+            success: result.success,
+            result,
+            generation: total,
+            fitness,
+            mutations: successes,
+            message: result.message,
+            error: result.error
+        });
+    } catch (err) {
+        console.error("[API] Evolution failed:", err);
+        res.status(500).json({ ok: false, error: err.message });
+    }
 });
 
 /* ===================== SERVER STARTUP ===================== */
